@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { ThumbsUp, MapPin, AlertCircle, Calendar, Send, CheckCircle, Clock, Check, Users } from 'lucide-react';
+import { ThumbsUp, MapPin, AlertCircle, Calendar, Send, CheckCircle, Clock, Check, Users, Mail, ExternalLink, Trophy } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function ChallengeDetail() {
@@ -34,6 +34,7 @@ export default function ChallengeDetail() {
   const [showSolutionModal, setShowSolutionModal] = useState(false);
   const [solutionSummary, setSolutionSummary] = useState('');
   const [demoLink, setDemoLink] = useState('');
+  const [contactEmail, setContactEmail] = useState('');
 
   useEffect(() => {
     fetchData();
@@ -117,7 +118,7 @@ export default function ChallengeDetail() {
 
   const handleSubmitSolution = async (e, teamId) => {
     e.preventDefault();
-    const { error } = await supabase.from('solutions').insert([{ challenge_id: id, team_id: teamId, summary: solutionSummary, demo_link: demoLink || null }]);
+    const { error } = await supabase.from('solutions').insert([{ challenge_id: id, team_id: teamId, summary: solutionSummary, demo_link: demoLink || null, contact_email: contactEmail || null }]);
     if (error) return alert(error.message);
     await supabase.from('challenges').update({ status: 'solution_submitted' }).eq('id', id);
     setShowSolutionModal(false);
@@ -145,6 +146,8 @@ export default function ChallengeDetail() {
   const canAdopt = userProfile && ['university', 'industry'].includes(userProfile.role) && challenge.status === 'open';
   const myTeam = teams.find(t => t.created_by === user?.id);
   const canVerify = user && (challenge.posted_by === user.id || userProfile?.role === 'admin') && challenge.status === 'solution_submitted';
+  
+  const verifiedSolution = solutions.find(s => s.status === 'verified');
 
   const statusSteps = [
     { id: 'open', label: 'Open', icon: Clock },
@@ -204,10 +207,44 @@ export default function ChallengeDetail() {
                 <span className="flex items-center bg-gray-100 dark:bg-gray-800 px-3 py-1.5 rounded-lg">By {posterProfile?.full_name} {posterProfile?.institution_name ? `(${posterProfile.institution_name})` : ''}</span>
               </div>
 
-              <div className="prose dark:prose-invert max-w-none">
+              <div className="prose dark:prose-invert max-w-none mb-8">
                 <h3 className="text-xl font-bold mb-3 text-gray-900 dark:text-white">Description</h3>
                 <p className="whitespace-pre-wrap text-gray-700 dark:text-gray-300 leading-relaxed text-lg">{challenge.description}</p>
               </div>
+
+              {/* Show Winning Solution if it exists */}
+              {verifiedSolution && (
+                <div className="mt-8 mb-4 bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border border-green-200 dark:border-green-800/50 rounded-2xl p-6 shadow-sm">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="bg-green-100 dark:bg-green-800 text-green-700 dark:text-green-300 p-2 rounded-xl">
+                      <Trophy className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-extrabold text-green-900 dark:text-green-400">Winning Solution</h3>
+                      <p className="text-sm font-bold text-green-700 dark:text-green-500">
+                        By {teams.find(t => t.id === verifiedSolution.team_id)?.team_name || 'A team'}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-white/60 dark:bg-gray-900/60 p-5 rounded-xl text-gray-800 dark:text-gray-200 mb-6 leading-relaxed">
+                    {verifiedSolution.summary}
+                  </div>
+                  
+                  <div className="flex flex-wrap gap-4">
+                    {verifiedSolution.demo_link && (
+                      <a href={verifiedSolution.demo_link} target="_blank" rel="noreferrer" className="inline-flex items-center px-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-lg font-bold hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors shadow-sm">
+                        <ExternalLink className="w-4 h-4 mr-2" /> View Demo
+                      </a>
+                    )}
+                    {verifiedSolution.contact_email && (
+                      <a href={`mailto:${verifiedSolution.contact_email}`} className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 transition-colors shadow-sm">
+                        <Mail className="w-4 h-4 mr-2" /> Contact Team
+                      </a>
+                    )}
+                  </div>
+                </div>
+              )}
 
               <div className="mt-8 pt-6 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between">
                 <button 
@@ -243,6 +280,7 @@ export default function ChallengeDetail() {
                   <div key={sol.id} className="bg-white dark:bg-gray-900 p-5 rounded-xl shadow-sm border border-purple-100 dark:border-purple-800/50 mb-4">
                     <p className="font-bold text-gray-900 dark:text-white mb-2">Summary: <span className="font-normal text-gray-700 dark:text-gray-300 block mt-1">{sol.summary}</span></p>
                     {sol.demo_link && <p className="font-bold text-gray-900 dark:text-white mt-4">Demo Link: <a href={sol.demo_link} target="_blank" rel="noreferrer" className="text-blue-600 dark:text-blue-400 font-normal hover:underline">{sol.demo_link}</a></p>}
+                    {sol.contact_email && <p className="font-bold text-gray-900 dark:text-white mt-4">Contact Email: <a href={`mailto:${sol.contact_email}`} className="text-blue-600 dark:text-blue-400 font-normal hover:underline">{sol.contact_email}</a></p>}
                     <div className="mt-5 flex gap-3">
                       <button onClick={() => handleVerifySolution(sol.id, true)} className="px-5 py-2.5 bg-green-600 text-white rounded-lg font-bold hover:bg-green-700 transition-colors flex items-center"><Check className="w-4 h-4 mr-2"/> Verify & Solved</button>
                       <button onClick={() => handleVerifySolution(sol.id, false)} className="px-5 py-2.5 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg font-bold hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors">Reject</button>
@@ -453,6 +491,13 @@ export default function ChallengeDetail() {
                 <div>
                   <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">Demo Link (Optional)</label>
                   <input type="url" value={demoLink} onChange={e => setDemoLink(e.target.value)} placeholder="https://github.com/..." className="block w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 dark:text-white transition-all" />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5 flex justify-between">
+                    <span>Contact Email</span>
+                    <span className="text-blue-500 font-normal text-xs">For investors / partners</span>
+                  </label>
+                  <input required type="email" value={contactEmail} onChange={e => setContactEmail(e.target.value)} placeholder="team@example.com" className="block w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 dark:text-white transition-all" />
                 </div>
                 <div className="mt-8 flex gap-3 justify-end">
                   <button type="button" onClick={() => setShowSolutionModal(false)} className="px-5 py-2.5 font-bold rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">Cancel</button>
