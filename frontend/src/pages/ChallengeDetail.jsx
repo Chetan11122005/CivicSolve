@@ -388,7 +388,7 @@ export default function ChallengeDetail() {
           </div>
 
           {/* Chat-like Comments */}
-          <div className="bg-white dark:bg-gray-900 flex flex-col flex-1 min-h-[400px] rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800">
+          <div className="bg-white dark:bg-gray-900 flex flex-col flex-1 min-h-0 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800">
             <div className="p-4 border-b border-gray-100 dark:border-gray-800">
               <h3 className="font-bold text-gray-900 dark:text-white">Discussion</h3>
             </div>
