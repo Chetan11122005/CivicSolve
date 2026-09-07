@@ -313,7 +313,7 @@ export default function Home() {
             <span className="hidden sm:inline opacity-30">•</span>
             <Link to="/auth" className="hover:text-white transition-colors">Partner as Industry</Link>
           </div>
-          <p className="text-sm opacity-60">Built for Smart India Hackathon 2026. All rights reserved.</p>
+          <p className="text-sm opacity-60">© 2026 CivicSolve. All rights reserved.</p>
         </div>
       </footer>
 
