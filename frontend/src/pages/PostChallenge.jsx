@@ -1,27 +1,73 @@
 import { useState } from 'react';
-import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
+import { supabase } from '../lib/supabase';
+import { UploadCloud, CheckCircle, AlertCircle, Sparkles, Loader2 } from 'lucide-react';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const CATEGORIES = ['water', 'health', 'education', 'infrastructure', 'environment', 'safety', 'other'];
-const SEVERITIES = ['low', 'medium', 'high'];
 
 export default function PostChallenge() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [category, setCategory] = useState('water');
+  const [category, setCategory] = useState('infrastructure');
   const [location, setLocation] = useState('');
-  const [severity, setSeverity] = useState('low');
-  const [imageFile, setImageFile] = useState(null);
-
+  const [severity, setSeverity] = useState('medium');
+  const [file, setFile] = useState(null);
+  
   const [loading, setLoading] = useState(false);
+  const [aiLoading, setAiLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
 
   const navigate = useNavigate();
 
-  const handleFileChange = (e) => {
-    if (e.target.files && e.target.files.length > 0) {
-      setImageFile(e.target.files[0]);
+  const handleAiAssist = async () => {
+    if (!description) {
+      setError("Please write a brief description first so the AI can analyze it.");
+      return;
+    }
+
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+    if (!apiKey) {
+      setError("VITE_GEMINI_API_KEY is not set in your .env file.");
+      return;
+    }
+
+    setAiLoading(true);
+    setError(null);
+
+    try {
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+
+      const prompt = `
+        Analyze the following civic issue description: "${description}"
+        Also consider the title if provided: "${title}"
+        
+        Classify this issue. You must respond with ONLY a valid raw JSON object (no markdown formatting, no backticks).
+        The JSON must have exactly two keys:
+        - "category": Must be strictly one of these exact words: water, health, education, infrastructure, environment, safety, other
+        - "severity": Must be strictly one of these exact words based on urgency: high, medium, low
+      `;
+
+      const result = await model.generateContent(prompt);
+      const responseText = result.response.text();
+      
+      // Clean up markdown if the AI mistakenly includes it
+      const cleanJson = responseText.replace(/```json/gi, '').replace(/```/g, '').trim();
+      const parsed = JSON.parse(cleanJson);
+
+      if (parsed.category && CATEGORIES.includes(parsed.category)) {
+        setCategory(parsed.category);
+      }
+      if (parsed.severity && ['high', 'medium', 'low'].includes(parsed.severity)) {
+        setSeverity(parsed.severity);
+      }
+    } catch (err) {
+      console.error("AI Error:", err);
+      setError("AI analysis failed. Please try again or fill manually.");
+    } finally {
+      setAiLoading(false);
     }
   };
 
@@ -31,49 +77,44 @@ export default function PostChallenge() {
     setError(null);
 
     try {
-      const { data: userData, error: userError } = await supabase.auth.getUser();
-      if (userError || !userData.user) {
-        throw new Error("You must be logged in to post a challenge.");
-      }
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('You must be logged in to post a challenge.');
 
-      let imageUrl = null;
-
-      if (imageFile) {
-        const fileExt = imageFile.name.split('.').pop();
+      let image_url = null;
+      if (file) {
+        const fileExt = file.name.split('.').pop();
         const fileName = `${Math.random()}.${fileExt}`;
-        const filePath = `${userData.user.id}/${fileName}`;
+        const filePath = `${user.id}/${fileName}`;
 
-        const { error: uploadError, data } = await supabase.storage
+        const { error: uploadError } = await supabase.storage
           .from('challenge-images')
-          .upload(filePath, imageFile);
+          .upload(filePath, file);
 
         if (uploadError) throw uploadError;
 
-        const { data: publicUrlData } = supabase.storage
+        const { data: urlData } = supabase.storage
           .from('challenge-images')
           .getPublicUrl(filePath);
-
-        imageUrl = publicUrlData.publicUrl;
+          
+        image_url = urlData.publicUrl;
       }
 
-      const { error: insertError } = await supabase
-        .from('challenges')
-        .insert([
-          {
-            title,
-            description,
-            category,
-            location,
-            severity,
-            image_url: imageUrl,
-            posted_by: userData.user.id,
-            status: 'pending_approval'
-          }
-        ]);
+      const { error: insertError } = await supabase.from('challenges').insert([
+        {
+          title,
+          description,
+          category,
+          location,
+          severity,
+          image_url,
+          posted_by: user.id
+        }
+      ]);
 
       if (insertError) throw insertError;
 
       setSuccess(true);
+      setTimeout(() => navigate('/dashboard'), 2000);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -81,126 +122,136 @@ export default function PostChallenge() {
     }
   };
 
-  if (success) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-md w-full space-y-8 bg-white p-10 rounded-lg shadow-md text-center">
-          <div className="text-green-500 text-6xl mb-4">✓</div>
-          <h2 className="text-3xl font-extrabold text-gray-900">Challenge Submitted!</h2>
-          <p className="mt-2 text-gray-600">
-            Your challenge is under review and will go live shortly.
-          </p>
-          <button
-            onClick={() => navigate('/dashboard')}
-            className="mt-6 w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
-          >
-            Go to Dashboard
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-2xl mx-auto bg-white p-8 rounded-lg shadow-md">
-        <h2 className="text-3xl font-extrabold text-gray-900 mb-6">Post a Challenge</h2>
-        
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Title</label>
-            <input
-              type="text"
-              required
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-              placeholder="E.g., Potholes on Main Street"
-            />
+    <div className="min-h-[calc(100vh-64px)] bg-gray-50 dark:bg-gray-950 py-12 px-4 sm:px-6 lg:px-8 transition-colors">
+      <div className="max-w-3xl mx-auto">
+        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 p-8 sm:p-12">
+          
+          <div className="mb-8 text-center">
+            <h1 className="text-3xl font-extrabold text-gray-900 dark:text-white">Post a Civic Challenge</h1>
+            <p className="mt-2 text-gray-600 dark:text-gray-400">Describe the problem in your community so solvers can help.</p>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Description</label>
-            <textarea
-              required
-              rows={4}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-              placeholder="Describe the problem in detail..."
-            />
-          </div>
-
-          <div className="grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-2">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Category</label>
-              <select
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md border"
-              >
-                {CATEGORIES.map(c => (
-                  <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>
-                ))}
-              </select>
+          {success ? (
+            <div className="flex flex-col items-center justify-center py-12">
+              <CheckCircle className="w-16 h-16 text-green-500 mb-4" />
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Challenge Posted!</h2>
+              <p className="text-gray-500 dark:text-gray-400">It is now pending admin approval. Redirecting...</p>
             </div>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-6">
+              
+              <div>
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">Title</label>
+                <input
+                  type="text"
+                  required
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  className="block w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 dark:text-white transition-all"
+                  placeholder="e.g., Potholes on Main Street"
+                />
+              </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Location</label>
-              <input
-                type="text"
-                required
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                placeholder="City, Neighborhood, etc."
-              />
-            </div>
-          </div>
+              <div>
+                <div className="flex justify-between items-end mb-1.5">
+                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300">Description</label>
+                  <button 
+                    type="button" 
+                    onClick={handleAiAssist}
+                    disabled={aiLoading}
+                    className="flex items-center text-xs font-bold bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 border border-indigo-200 dark:border-indigo-800 px-3 py-1.5 rounded-lg transition-colors"
+                  >
+                    {aiLoading ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5 mr-1.5" />}
+                    {aiLoading ? 'Analyzing...' : 'Auto-Categorize with AI'}
+                  </button>
+                </div>
+                <textarea
+                  required
+                  rows={5}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  className="block w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 dark:text-white transition-all resize-none"
+                  placeholder="Describe the issue, its impact, and what kind of solution you're looking for..."
+                />
+              </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Severity</label>
-            <div className="flex space-x-4">
-              {SEVERITIES.map(s => (
-                <label key={s} className="flex items-center">
-                  <input
-                    type="radio"
-                    name="severity"
-                    value={s}
-                    checked={severity === s}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">Category</label>
+                  <select
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                    className="block w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 dark:text-white transition-all appearance-none capitalize"
+                  >
+                    {CATEGORIES.map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">Severity</label>
+                  <select
+                    value={severity}
                     onChange={(e) => setSeverity(e.target.value)}
-                    className="focus:ring-blue-500 h-4 w-4 text-blue-600 border-gray-300"
-                  />
-                  <span className="ml-2 text-sm text-gray-700">{s.charAt(0).toUpperCase() + s.slice(1)}</span>
-                </label>
-              ))}
-            </div>
-          </div>
+                    className="block w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 dark:text-white transition-all appearance-none capitalize"
+                  >
+                    <option value="high">High</option>
+                    <option value="medium">Medium</option>
+                    <option value="low">Low</option>
+                  </select>
+                </div>
+              </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Image (Optional)</label>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handleFileChange}
-              className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-            />
-          </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">Location</label>
+                <input
+                  type="text"
+                  required
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                  className="block w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 dark:text-white transition-all"
+                  placeholder="e.g., Downtown District, City Name"
+                />
+              </div>
 
-          {error && (
-            <div className="text-red-600 text-sm">{error}</div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">Upload Image (Optional)</label>
+                <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 dark:border-gray-700 border-dashed rounded-lg bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                  <div className="space-y-1 text-center">
+                    <UploadCloud className="mx-auto h-12 w-12 text-gray-400" />
+                    <div className="flex text-sm text-gray-600 dark:text-gray-400 justify-center">
+                      <label className="relative cursor-pointer bg-transparent rounded-md font-bold text-blue-600 dark:text-blue-400 hover:text-blue-500 focus-within:outline-none">
+                        <span>Upload a file</span>
+                        <input type="file" className="sr-only" accept="image/*" onChange={(e) => setFile(e.target.files[0])} />
+                      </label>
+                      <p className="pl-1">or drag and drop</p>
+                    </div>
+                    <p className="text-xs text-gray-500 dark:text-gray-500">
+                      {file ? file.name : "PNG, JPG, GIF up to 5MB"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {error && (
+                <div className="p-4 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+                  <p className="text-sm text-red-700 dark:text-red-400">{error}</p>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm shadow-blue-600/20 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 transition-colors mt-6"
+              >
+                {loading ? 'Posting...' : 'Submit Challenge'}
+              </button>
+            </form>
           )}
-
-          <div className="pt-4">
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
-            >
-              {loading ? 'Submitting...' : 'Post Challenge'}
-            </button>
-          </div>
-        </form>
+        </div>
       </div>
     </div>
   );
