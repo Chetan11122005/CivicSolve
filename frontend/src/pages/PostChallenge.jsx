@@ -27,9 +27,12 @@ export default function PostChallenge() {
       return;
     }
 
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+    const geminiKey = import.meta.env.VITE_GEMINI_API_KEY;
+    const openRouterKey = import.meta.env.VITE_OPENROUTER_API_KEY;
+    const apiKey = openRouterKey || geminiKey;
+
     if (!apiKey) {
-      setError("VITE_GEMINI_API_KEY is not set in your .env file.");
+      setError("Please set VITE_GEMINI_API_KEY or VITE_OPENROUTER_API_KEY in your .env file.");
       return;
     }
 
@@ -46,15 +49,15 @@ export default function PostChallenge() {
         - "category": Must be strictly one of these exact words: water, health, education, infrastructure, environment, safety, other
         - "severity": Must be strictly one of these exact words based on urgency: high, medium, low
       `;
-      
+
       let responseText = "";
 
-      // Check if it's an OpenRouter key
-      if (!apiKey.startsWith("AIza")) {
+      if (apiKey.startsWith('sk-or-')) {
+        // Use OpenRouter API
         const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
           method: "POST",
           headers: {
-            "Authorization": `Bearer ${apiKey.trim()}`,
+            "Authorization": `Bearer ${apiKey}`,
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
@@ -62,15 +65,15 @@ export default function PostChallenge() {
             messages: [{ role: "user", content: prompt }]
           })
         });
-        
+
         if (!response.ok) {
-          throw new Error(`OpenRouter API error: ${response.status}`);
+          throw new Error(`OpenRouter error: ${response.statusText}`);
         }
-        
+
         const data = await response.json();
         responseText = data.choices[0].message.content;
       } else {
-        // Use native Google SDK
+        // Use native Google Gemini SDK
         const genAI = new GoogleGenerativeAI(apiKey);
         const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
         const result = await model.generateContent(prompt);
