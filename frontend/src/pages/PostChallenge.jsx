@@ -61,13 +61,15 @@ export default function PostChallenge() {
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
-            model: "google/gemini-2.5-flash",
+            model: "google/gemini-flash-1.5",
             messages: [{ role: "user", content: prompt }]
           })
         });
 
         if (!response.ok) {
-          throw new Error(`OpenRouter error: ${response.statusText}`);
+          const errData = await response.json().catch(() => ({}));
+          console.error("OpenRouter Error Data:", errData);
+          throw new Error(`OpenRouter error: ${response.status} ${response.statusText} - ${errData.error?.message || ''}`);
         }
 
         const data = await response.json();
@@ -75,7 +77,7 @@ export default function PostChallenge() {
       } else {
         // Use native Google Gemini SDK
         const genAI = new GoogleGenerativeAI(apiKey);
-        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
         const result = await model.generateContent(prompt);
         responseText = result.response.text();
       }
@@ -84,15 +86,15 @@ export default function PostChallenge() {
       const cleanJson = responseText.replace(/```json/gi, '').replace(/```/g, '').trim();
       const parsed = JSON.parse(cleanJson);
 
-      if (parsed.category && CATEGORIES.includes(parsed.category)) {
-        setCategory(parsed.category);
+      if (parsed.category && CATEGORIES.includes(parsed.category.toLowerCase())) {
+        setCategory(parsed.category.toLowerCase());
       }
-      if (parsed.severity && ['high', 'medium', 'low'].includes(parsed.severity)) {
-        setSeverity(parsed.severity);
+      if (parsed.severity && ['high', 'medium', 'low'].includes(parsed.severity.toLowerCase())) {
+        setSeverity(parsed.severity.toLowerCase());
       }
     } catch (err) {
       console.error("AI Error:", err);
-      setError("AI analysis failed. Please try again or fill manually.");
+      setError(`AI Error: ${err.message}`);
     } finally {
       setAiLoading(false);
     }
