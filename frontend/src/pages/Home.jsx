@@ -73,16 +73,6 @@ export default function Home() {
           
           <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
             
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.5 }}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800/50 text-blue-700 dark:text-blue-300 font-bold text-sm mb-8 shadow-sm"
-            >
-              <Sparkles className="w-4 h-4" />
-              <span>Smart India Hackathon 2026 Winner</span>
-            </motion.div>
-
             <motion.div variants={containerVariants} initial="hidden" animate="visible">
               <motion.h1 variants={itemVariants} className="text-5xl md:text-7xl font-extrabold tracking-tight text-gray-900 dark:text-white mb-6 leading-tight">
                 Where real problems <br className="hidden md:block" /> 
