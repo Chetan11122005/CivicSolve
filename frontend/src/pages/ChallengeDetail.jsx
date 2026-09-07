@@ -361,10 +361,10 @@ export default function ChallengeDetail() {
         </div>
 
         {/* Sidebar */}
-        <div className="w-full lg:w-80 flex-shrink-0 space-y-6">
+        <div className="w-full lg:w-80 flex-shrink-0 flex flex-col gap-6 lg:sticky lg:top-24 lg:h-[calc(100vh-8rem)]">
           
           {/* Vertical Status Timeline */}
-          <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 sticky top-24">
+          <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800">
             <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-6">Status Tracker</h3>
             <div className="space-y-6 relative">
               <div className="absolute left-3.5 top-2 bottom-4 w-0.5 bg-gray-200 dark:bg-gray-800"></div>
@@ -388,7 +388,7 @@ export default function ChallengeDetail() {
           </div>
 
           {/* Chat-like Comments */}
-          <div className="bg-white dark:bg-gray-900 flex flex-col h-[500px] rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800">
+          <div className="bg-white dark:bg-gray-900 flex flex-col flex-1 min-h-[400px] rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800">
             <div className="p-4 border-b border-gray-100 dark:border-gray-800">
               <h3 className="font-bold text-gray-900 dark:text-white">Discussion</h3>
             </div>
