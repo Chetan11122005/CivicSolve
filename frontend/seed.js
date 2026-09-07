@@ -69,43 +69,51 @@ async function seed() {
   const challenges = [
     {
       title: "Clean Water Access in Rural Valley",
-      description: "The local river is heavily polluted with agricultural runoff. We need a low-cost filtration system.",
-      category: "water", location: "Rural Valley", severity: "high", status: "open", is_featured: false, posted_by: createdUsers.citizen.id
+      description: "The local river is heavily polluted with agricultural runoff. We need a low-cost filtration system to ensure safe drinking water for 500 families.",
+      category: "water", location: "Rural Valley", severity: "high", status: "open", is_featured: false, posted_by: createdUsers.citizen.id,
+      image_url: "https://images.unsplash.com/photo-1542361345-89e58247f2d5?q=80&w=2940&auto=format&fit=crop"
     },
     {
       title: "Smart Traffic Lights for Main Street",
-      description: "Traffic congestion during rush hour is causing major delays. Need an AI-based timing system.",
-      category: "infrastructure", location: "Downtown", severity: "medium", status: "pending_approval", is_featured: false, posted_by: createdUsers.citizen.id
+      description: "Traffic congestion during rush hour is causing major delays and increased emissions. We need an AI-based timing system to optimize flow.",
+      category: "infrastructure", location: "Downtown", severity: "medium", status: "pending_approval", is_featured: false, posted_by: createdUsers.citizen.id,
+      image_url: "https://images.unsplash.com/photo-1449824913935-59a10b8d2000?q=80&w=2940&auto=format&fit=crop"
     },
     {
       title: "Community Solar Power Grid",
-      description: "Looking to build a micro-grid for 50 homes using solar panels.",
-      category: "environment", location: "Sunnyside", severity: "medium", status: "open", is_featured: false, posted_by: createdUsers.citizen.id
+      description: "Looking to build a micro-grid for 50 homes using solar panels. Need electrical engineering students to design the distribution system.",
+      category: "environment", location: "Sunnyside", severity: "medium", status: "open", is_featured: false, posted_by: createdUsers.citizen.id,
+      image_url: "https://images.unsplash.com/photo-1509391366360-1e97d526168e?q=80&w=2944&auto=format&fit=crop"
     },
     {
       title: "Automated Pothole Detection",
-      description: "Need a computer vision model that can run on dashcams to report potholes to the city.",
-      category: "infrastructure", location: "Citywide", severity: "high", status: "solved", is_featured: true, posted_by: createdUsers.citizen.id
+      description: "Need a computer vision model that can run on city buses to automatically detect and report potholes to the public works department.",
+      category: "infrastructure", location: "Citywide", severity: "high", status: "solved", is_featured: true, posted_by: createdUsers.citizen.id,
+      image_url: "https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?q=80&w=2940&auto=format&fit=crop"
     },
     {
       title: "Digital Literacy for Seniors",
-      description: "Need an easy-to-use app tablet interface designed specifically for elderly citizens to access government services.",
-      category: "education", location: "North District", severity: "low", status: "solved", is_featured: true, posted_by: createdUsers.citizen.id
+      description: "Need an easy-to-use tablet interface designed specifically for elderly citizens to access government services and telemedicine.",
+      category: "education", location: "North District", severity: "low", status: "solved", is_featured: true, posted_by: createdUsers.citizen.id,
+      image_url: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=2788&auto=format&fit=crop"
     },
     {
       title: "Flood Warning IoT Sensors",
-      description: "Low-cost water level sensors connected via LoRaWAN to warn neighborhoods of flash floods.",
-      category: "safety", location: "Riverside", severity: "high", status: "solved", is_featured: true, posted_by: createdUsers.citizen.id
+      description: "Low-cost water level sensors connected via LoRaWAN to warn neighborhoods of flash floods in real-time.",
+      category: "safety", location: "Riverside", severity: "high", status: "solved", is_featured: true, posted_by: createdUsers.citizen.id,
+      image_url: "https://images.unsplash.com/photo-1547683905-f686c993aae5?q=80&w=2940&auto=format&fit=crop"
     },
     {
-      title: "Mobile Health Clinic App",
-      description: "App to track the schedule and inventory of mobile health clinics serving remote areas.",
-      category: "health", location: "Western Province", severity: "high", status: "in_progress", is_featured: false, posted_by: createdUsers.citizen.id
+      title: "Mobile Health Clinic Routing",
+      description: "An optimization algorithm to track and schedule mobile health clinics serving remote areas efficiently.",
+      category: "health", location: "Western Province", severity: "high", status: "in_progress", is_featured: false, posted_by: createdUsers.citizen.id,
+      image_url: "https://images.unsplash.com/photo-1584515933487-779824d29309?q=80&w=2940&auto=format&fit=crop"
     },
     {
       title: "Waste Sorting Robotics",
-      description: "A robotic arm system for the local recycling facility to automatically sort plastics.",
-      category: "environment", location: "Industrial Park", severity: "medium", status: "solution_submitted", is_featured: false, posted_by: createdUsers.citizen.id
+      description: "A robotic arm system for the local recycling facility to automatically sort plastics from compostable materials.",
+      category: "environment", location: "Industrial Park", severity: "medium", status: "solution_submitted", is_featured: false, posted_by: createdUsers.citizen.id,
+      image_url: "https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?q=80&w=2940&auto=format&fit=crop"
     }
   ];
 
@@ -113,7 +121,6 @@ async function seed() {
   if (challengesError) { console.error("Error inserting challenges:", challengesError); return; }
 
   // We need to bypass RLS to force update statuses that citizens can't normally set (like solved)
-  // For the script, we will just login as admin
   await supabase.auth.signInWithPassword({ email: 'admin@example.com', password: 'password123' });
   
   // Login as University to create teams
@@ -131,13 +138,13 @@ async function seed() {
       team_name: "HealthTech Innovators",
       institution_name: "State University",
       created_by: createdUsers.university.id,
-      members: ["Alice", "Bob"]
+      members: ["Alice Walker", "Bob Chen"]
     }).select().single();
 
     if (team1) {
       await supabase.from('progress_updates').insert([
-        { team_id: team1.id, challenge_id: inProgressChallenge.id, posted_by: createdUsers.university.id, text: "We have finalized the app wireframes." },
-        { team_id: team1.id, challenge_id: inProgressChallenge.id, posted_by: createdUsers.university.id, text: "Backend database schema is set up." }
+        { team_id: team1.id, challenge_id: inProgressChallenge.id, posted_by: createdUsers.university.id, text: "We have finalized the app wireframes and conducted 5 user interviews." },
+        { team_id: team1.id, challenge_id: inProgressChallenge.id, posted_by: createdUsers.university.id, text: "Backend database schema is set up. Moving on to the React Native frontend!" }
       ]);
     }
   }
@@ -148,11 +155,10 @@ async function seed() {
       team_name: "EcoBots",
       institution_name: "Tech Institute",
       created_by: createdUsers.university2?.id || createdUsers.university.id,
-      members: ["Charlie", "Dave"]
+      members: ["Charlie Davis", "Dave Smith"]
     }).select().single();
 
     if (team2) {
-      // Must be logged in as the team creator to submit solution
       if (createdUsers.university2) {
         await supabase.auth.signInWithPassword({ email: 'uni2@example.com', password: 'password123' });
       }
@@ -160,25 +166,24 @@ async function seed() {
       await supabase.from('solutions').insert({
         challenge_id: solutionSubChallenge.id,
         team_id: team2.id,
-        summary: "We built a computer vision model using YOLOv8 to detect 5 types of recyclable plastics.",
+        summary: "We built a computer vision model using YOLOv8 to detect 5 types of recyclable plastics with 94% accuracy. The robotic arm code is currently being simulated in ROS.",
         demo_link: "https://github.com/example/ecobots",
+        contact_email: "team@ecobots.edu",
         status: "submitted"
       });
     }
   }
 
-  // For the solved challenges, we need verified solutions
   console.log("Creating solutions for solved challenges...");
   for (const sc of solvedChallenges) {
-    // Admin login to bypass some RLS for fast seeding, but wait, teams must be created by uni/industry
     await supabase.auth.signInWithPassword({ email: 'industry@example.com', password: 'password123' });
     
     const { data: team3 } = await supabase.from('teams').insert({
       challenge_id: sc.id,
-      team_name: "Industry Solvers " + sc.id.substring(0,4),
+      team_name: "Global Solvers",
       institution_name: "Global Solutions Inc",
       created_by: createdUsers.industry.id,
-      members: ["Eve", "Frank"],
+      members: ["Eve Rodriguez", "Frank Lee"],
       is_sponsored: true,
       mentor_name: "Dr. Mentor"
     }).select().single();
@@ -187,8 +192,9 @@ async function seed() {
       const { data: solData, error: solError } = await supabase.from('solutions').insert({
         challenge_id: sc.id,
         team_id: team3.id,
-        summary: `We successfully deployed the solution for ${sc.title}. The system is now live and serving the community.`,
+        summary: `We successfully deployed the solution for ${sc.title}. The system is now live, serving the community, and we have open-sourced the entire hardware schematic for other cities to replicate.`,
         demo_link: "https://demo.example.com",
+        contact_email: "contact@globalsolutions.com",
         status: "verified"
       }).select();
       if (solError) console.error("Solution error:", solError);
