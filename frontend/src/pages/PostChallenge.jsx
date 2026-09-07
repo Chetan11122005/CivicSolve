@@ -37,9 +37,6 @@ export default function PostChallenge() {
     setError(null);
 
     try {
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-
       const prompt = `
         Analyze the following civic issue description: "${description}"
         Also consider the title if provided: "${title}"
@@ -49,9 +46,36 @@ export default function PostChallenge() {
         - "category": Must be strictly one of these exact words: water, health, education, infrastructure, environment, safety, other
         - "severity": Must be strictly one of these exact words based on urgency: high, medium, low
       `;
+      
+      let responseText = "";
 
-      const result = await model.generateContent(prompt);
-      const responseText = result.response.text();
+      // Check if it's an OpenRouter key
+      if (!apiKey.startsWith("AIza")) {
+        const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${apiKey.trim()}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            model: "google/gemini-2.5-flash",
+            messages: [{ role: "user", content: prompt }]
+          })
+        });
+        
+        if (!response.ok) {
+          throw new Error(`OpenRouter API error: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        responseText = data.choices[0].message.content;
+      } else {
+        // Use native Google SDK
+        const genAI = new GoogleGenerativeAI(apiKey);
+        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+        const result = await model.generateContent(prompt);
+        responseText = result.response.text();
+      }
       
       // Clean up markdown if the AI mistakenly includes it
       const cleanJson = responseText.replace(/```json/gi, '').replace(/```/g, '').trim();
