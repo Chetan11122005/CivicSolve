@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { UploadCloud, CheckCircle, AlertCircle, Sparkles, Loader2, MapPin, Navigation } from 'lucide-react';
+import { UploadCloud, CheckCircle, AlertCircle, Sparkles, Loader2, MapPin, Navigation, X, Image as ImageIcon } from 'lucide-react';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { useTranslation } from 'react-i18next';
 
@@ -15,6 +15,8 @@ export default function PostChallenge() {
   const [location, setLocation] = useState('');
   const [severity, setSeverity] = useState('medium');
   const [file, setFile] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const [isDragging, setIsDragging] = useState(false);
   
   const [loading, setLoading] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
@@ -23,6 +25,51 @@ export default function PostChallenge() {
   const [success, setSuccess] = useState(false);
 
   const navigate = useNavigate();
+
+  // Clean up Object URL to avoid memory leaks
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
+
+  const handleFileSelect = (selectedFile) => {
+    if (!selectedFile) return;
+    if (!selectedFile.type.startsWith('image/')) {
+      setError("Please upload a valid image file (PNG, JPG, WebP).");
+      return;
+    }
+    if (selectedFile.size > 5 * 1024 * 1024) {
+      setError("Image size must be less than 5MB.");
+      return;
+    }
+    setError(null);
+    setFile(selectedFile);
+    setPreviewUrl(URL.createObjectURL(selectedFile));
+  };
+
+  const handleRemoveFile = () => {
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setFile(null);
+    setPreviewUrl(null);
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = () => {
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleFileSelect(e.dataTransfer.files[0]);
+    }
+  };
 
   // GPS Location Auto-Detection
   const handleAutoDetectLocation = () => {
@@ -326,23 +373,83 @@ export default function PostChallenge() {
                 </div>
               </div>
 
+              {/* Upload Image with Live Preview */}
               <div>
-                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">{t('postChallenge.upload')}</label>
-                <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 dark:border-gray-700 border-dashed rounded-lg bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-                  <div className="space-y-1 text-center">
-                    <UploadCloud className="mx-auto h-12 w-12 text-gray-400" />
-                    <div className="flex text-sm text-gray-600 dark:text-gray-400 justify-center">
-                      <label className="relative cursor-pointer bg-transparent rounded-md font-bold text-blue-600 dark:text-blue-400 hover:text-blue-500 focus-within:outline-none">
-                        <span>{t('postChallenge.uploadPrompt')}</span>
-                        <input type="file" className="sr-only" accept="image/*" onChange={(e) => setFile(e.target.files[0])} />
-                      </label>
-                      <p className="pl-1">{t('postChallenge.orDrag')}</p>
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">
+                  {t('postChallenge.upload')}
+                </label>
+
+                {previewUrl ? (
+                  /* Live Image Preview Container */
+                  <div className="mt-1 relative rounded-2xl overflow-hidden border-2 border-blue-500/30 dark:border-blue-500/30 bg-gray-100 dark:bg-gray-800 p-2 group transition-all">
+                    <div className="relative h-64 sm:h-72 w-full rounded-xl overflow-hidden bg-gray-900 flex items-center justify-center">
+                      <img
+                        src={previewUrl}
+                        alt="Upload preview"
+                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+                      />
+                      
+                      {/* Overlay & Controls */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex flex-col justify-between p-4">
+                        <div className="flex justify-end">
+                          <button
+                            type="button"
+                            onClick={handleRemoveFile}
+                            className="flex items-center gap-1.5 bg-red-600/90 hover:bg-red-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-md cursor-pointer hover:scale-105"
+                          >
+                            <X className="w-4 h-4" />
+                            <span>Remove Image</span>
+                          </button>
+                        </div>
+
+                        <div className="flex items-center justify-between text-white">
+                          <div className="flex items-center gap-2 truncate max-w-[80%]">
+                            <ImageIcon className="w-4 h-4 text-blue-400 flex-shrink-0" />
+                            <span className="text-xs font-bold truncate">
+                              {file?.name}
+                            </span>
+                          </div>
+                          <span className="text-xs font-semibold text-gray-300 bg-white/20 backdrop-blur-md px-2 py-0.5 rounded-md flex-shrink-0">
+                            {(file?.size / (1024 * 1024)).toFixed(2)} MB
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                    <p className="text-xs text-gray-500 dark:text-gray-500">
-                      {file ? file.name : t('postChallenge.fileTypes')}
-                    </p>
                   </div>
-                </div>
+                ) : (
+                  /* Drag & Drop Upload Zone */
+                  <div
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                    className={`mt-1 flex justify-center px-6 pt-6 pb-6 border-2 border-dashed rounded-2xl transition-all ${
+                      isDragging
+                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 scale-[1.01]'
+                        : 'border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800'
+                    }`}
+                  >
+                    <div className="space-y-2 text-center">
+                      <div className="w-12 h-12 rounded-full bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 flex items-center justify-center mx-auto">
+                        <UploadCloud className="h-6 w-6" />
+                      </div>
+                      <div className="flex text-sm text-gray-600 dark:text-gray-400 justify-center">
+                        <label className="relative cursor-pointer bg-transparent rounded-md font-bold text-blue-600 dark:text-blue-400 hover:text-blue-500 focus-within:outline-none">
+                          <span>{t('postChallenge.uploadPrompt')}</span>
+                          <input
+                            type="file"
+                            className="sr-only"
+                            accept="image/*"
+                            onChange={(e) => handleFileSelect(e.target.files[0])}
+                          />
+                        </label>
+                        <p className="pl-1">{t('postChallenge.orDrag')}</p>
+                      </div>
+                      <p className="text-xs text-gray-500 dark:text-gray-500">
+                        {t('postChallenge.fileTypes')}
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {error && (
