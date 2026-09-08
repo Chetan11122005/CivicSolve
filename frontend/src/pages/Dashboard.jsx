@@ -307,7 +307,14 @@ export default function Dashboard() {
                           {myChallenges.map(c => (
                             <tr key={c.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
                               <td className="px-6 py-4">
-                                <div className="font-bold text-gray-900 dark:text-white">{c.title}</div>
+                                <div className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                  <span>{c.title}</span>
+                                  {(c.ai_quality_status === 'clear' || (c.ai_validation_score && c.ai_validation_score >= 60)) && (
+                                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
+                                      <Sparkles className="w-2.5 h-2.5 text-indigo-500" /> AI Verified
+                                    </span>
+                                  )}
+                                </div>
                                 <div className="text-sm text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-2">
                                   <span className="capitalize">{c.category}</span>
                                   <span>•</span>

@@ -68,3 +68,9 @@ DROP TRIGGER IF EXISTS tr_create_default_milestones ON teams;
 CREATE TRIGGER tr_create_default_milestones
   AFTER INSERT ON teams
   FOR EACH ROW EXECUTE FUNCTION public.create_default_milestones();
+
+-- 7. AI Verification Metadata for Challenges
+ALTER TABLE challenges ADD COLUMN IF NOT EXISTS ai_validation_score INT DEFAULT NULL;
+ALTER TABLE challenges ADD COLUMN IF NOT EXISTS ai_detected_tags TEXT[] DEFAULT '{}';
+ALTER TABLE challenges ADD COLUMN IF NOT EXISTS ai_quality_status TEXT DEFAULT 'verified';
+

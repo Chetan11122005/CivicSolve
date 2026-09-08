@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
-import { Search, MapPin, AlertCircle, ThumbsUp, Filter, LayoutGrid, Map as MapIcon } from 'lucide-react';
+import { Search, MapPin, AlertCircle, ThumbsUp, Filter, LayoutGrid, Map as MapIcon, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import ChallengeMap from '../components/ChallengeMap';
@@ -352,9 +352,16 @@ export default function Discover() {
                         
                         <div className="p-5 flex-1 flex flex-col relative bg-white dark:bg-gray-900">
                           <div className="flex justify-between items-start mb-3 gap-2">
-                            <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200 capitalize">
-                              {t(`categories.${challenge.category}`)}
-                            </span>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200 capitalize">
+                                {t(`categories.${challenge.category}`)}
+                              </span>
+                              {(challenge.ai_quality_status === 'clear' || (challenge.ai_validation_score && challenge.ai_validation_score >= 60)) && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-50 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
+                                  <Sparkles className="w-3 h-3 text-indigo-500" /> AI Verified
+                                </span>
+                              )}
+                            </div>
                             <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold capitalize ${getStatusColor(challenge.status)}`}>
                               {t(`discover.${challenge.status}`) || challenge.status.replace('_', ' ')}
                             </span>
