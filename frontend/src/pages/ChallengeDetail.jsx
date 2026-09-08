@@ -1,8 +1,29 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { ThumbsUp, MapPin, AlertCircle, Calendar, Send, CheckCircle, Clock, Check, Users, Mail, ExternalLink, Trophy } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { 
+  ThumbsUp, 
+  MapPin, 
+  AlertCircle, 
+  Calendar, 
+  Send, 
+  CheckCircle, 
+  Clock, 
+  Check, 
+  Users, 
+  Gift, 
+  Layers, 
+  ShieldCheck,
+  Activity,
+  CheckCircle2,
+  FileCode2,
+  Rocket
+} from 'lucide-react';
+import { motion } from 'framer-motion';
+import AdoptChallengeModal from '../components/AdoptChallengeModal';
+import MilestoneTracker from '../components/MilestoneTracker';
+import CitizenVerificationModal from '../components/CitizenVerificationModal';
+import BeforeAfterSlider from '../components/BeforeAfterSlider';
 
 export default function ChallengeDetail() {
   const { id } = useParams();
@@ -20,21 +41,32 @@ export default function ChallengeDetail() {
   const [newCommentText, setNewCommentText] = useState('');
   
   const [teams, setTeams] = useState([]);
+  const [selectedTeamIndex, setSelectedTeamIndex] = useState(0);
   const [progressUpdates, setProgressUpdates] = useState([]);
   const [solutions, setSolutions] = useState([]);
+  const [verificationFeedback, setVerificationFeedback] = useState(null);
   const [newProgressText, setNewProgressText] = useState('');
 
   // Modals
   const [showAdoptModal, setShowAdoptModal] = useState(false);
-  const [teamName, setTeamName] = useState('');
-  const [membersStr, setMembersStr] = useState('');
-  const [mentorName, setMentorName] = useState('');
-  const [isSponsored, setIsSponsored] = useState(false);
-
+  const [showVerifyModal, setShowVerifyModal] = useState(false);
   const [showSolutionModal, setShowSolutionModal] = useState(false);
   const [solutionSummary, setSolutionSummary] = useState('');
   const [demoLink, setDemoLink] = useState('');
   const [contactEmail, setContactEmail] = useState('');
+
+  // Industry Sponsor Modal
+  const [showSponsorModal, setShowSponsorModal] = useState(false);
+  const [sponsorOrg, setSponsorOrg] = useState('');
+  const [sponsorType, setSponsorType] = useState('Financial Grant / Bounty');
+  const [grantAmount, setGrantAmount] = useState('');
+  const [sponsorMentor, setSponsorMentor] = useState('');
+  const [sponsorEmail, setSponsorEmail] = useState('');
+  const [sponsorNotes, setSponsorNotes] = useState('');
+  const [sponsorLoading, setSponsorLoading] = useState(false);
+
+  // Active Tab for Team Details
+  const [activeTeamTab, setActiveTeamTab] = useState('milestones'); // 'milestones' | 'blueprint' | 'feed'
 
   useEffect(() => {
     fetchData();
@@ -48,6 +80,11 @@ export default function ChallengeDetail() {
     if (user) {
       const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
       setUserProfile(profile);
+      if (profile) {
+        setSponsorOrg(profile.institution_name || profile.full_name || '');
+        setSponsorMentor(profile.full_name || '');
+        setSponsorEmail(user.email || '');
+      }
       const { data: upvote } = await supabase.from('upvotes').select('id').eq('challenge_id', id).eq('user_id', user.id).maybeSingle();
       setHasUpvoted(!!upvote);
     }
@@ -71,6 +108,9 @@ export default function ChallengeDetail() {
     const { data: solutionsData } = await supabase.from('solutions').select('*').eq('challenge_id', id);
     setSolutions(solutionsData || []);
 
+    const { data: feedbackData } = await supabase.from('verification_feedback').select('*').eq('challenge_id', id).order('created_at', { ascending: false }).maybeSingle();
+    setVerificationFeedback(feedbackData);
+
     setLoading(false);
   };
 
@@ -93,17 +133,45 @@ export default function ChallengeDetail() {
     }
   };
 
-  const handleAdoptChallenge = async (e) => {
+  const handleSponsorChallenge = async (e) => {
     e.preventDefault();
-    const membersArray = membersStr.split(',').map(s => s.trim()).filter(s => s);
-    const newTeam = { challenge_id: id, team_name: teamName, institution_name: userProfile?.institution_name || 'Independent', created_by: user.id, members: membersArray, mentor_name: mentorName || null, is_sponsored: isSponsored };
-    const { data, error } = await supabase.from('teams').insert([newTeam]).select('*').single();
-    if (error) return alert(error.message);
-    setTeams([...teams, data]);
-    setShowAdoptModal(false);
-    if (challenge.status === 'open') {
-      await supabase.from('challenges').update({ status: 'in_progress' }).eq('id', id);
-      setChallenge({ ...challenge, status: 'in_progress' });
+    setSponsorLoading(true);
+    try {
+      const orgName = sponsorOrg.trim() || userProfile?.institution_name || userProfile?.full_name || 'Industry Partner';
+      const pledgeDetails = grantAmount.trim() ? `${sponsorType} (${grantAmount.trim()})` : sponsorType;
+      const notes = [
+        pledgeDetails,
+        sponsorEmail ? `Contact: ${sponsorEmail}` : '',
+        sponsorNotes ? `Guidance: ${sponsorNotes}` : ''
+      ].filter(Boolean);
+
+      const newSponsoredEntry = {
+        challenge_id: id,
+        team_name: `${orgName} (Sponsor & Mentor)`,
+        institution_name: orgName,
+        created_by: user.id,
+        members: notes,
+        mentor_name: sponsorMentor || orgName,
+        is_sponsored: true
+      };
+
+      const { data, error } = await supabase.from('teams').insert([newSponsoredEntry]).select('*').single();
+      if (error) throw error;
+
+      await supabase.from('comments').insert([{
+        challenge_id: id,
+        user_id: user.id,
+        text: `🏆 [Official Sponsorship] ${orgName} has sponsored this challenge with ${pledgeDetails}! Mentor: ${sponsorMentor || 'Industry Partner'}`
+      }]);
+
+      setTeams([...teams, data]);
+      setShowSponsorModal(false);
+      fetchData();
+    } catch (err) {
+      console.error('Error sponsoring challenge:', err);
+      alert(err.message || 'Could not sponsor challenge.');
+    } finally {
+      setSponsorLoading(false);
     }
   };
 
@@ -118,21 +186,17 @@ export default function ChallengeDetail() {
 
   const handleSubmitSolution = async (e, teamId) => {
     e.preventDefault();
-    const { error } = await supabase.from('solutions').insert([{ challenge_id: id, team_id: teamId, summary: solutionSummary, demo_link: demoLink || null, contact_email: contactEmail || null }]);
+    const { error } = await supabase.from('solutions').insert([{ 
+      challenge_id: id, 
+      team_id: teamId, 
+      summary: solutionSummary, 
+      demo_link: demoLink || null, 
+      contact_email: contactEmail || null,
+      status: 'submitted'
+    }]);
     if (error) return alert(error.message);
     await supabase.from('challenges').update({ status: 'solution_submitted' }).eq('id', id);
     setShowSolutionModal(false);
-    fetchData();
-  };
-
-  const handleVerifySolution = async (solutionId, markSolved) => {
-    if (markSolved) {
-      await supabase.from('solutions').update({ status: 'verified' }).eq('id', solutionId);
-      await supabase.from('challenges').update({ status: 'solved' }).eq('id', id);
-    } else {
-      await supabase.from('solutions').update({ status: 'rejected' }).eq('id', solutionId);
-      await supabase.from('challenges').update({ status: 'in_progress' }).eq('id', id);
-    }
     fetchData();
   };
 
@@ -143,11 +207,12 @@ export default function ChallengeDetail() {
   );
   if (!challenge) return <div className="text-center py-20 text-red-500 font-medium">Challenge not found.</div>;
 
-  const canAdopt = userProfile && ['university', 'industry'].includes(userProfile.role) && challenge.status === 'open';
+  const canAdopt = userProfile && ['university', 'industry', 'citizen'].includes(userProfile.role) && challenge.status !== 'solved';
   const myTeam = teams.find(t => t.created_by === user?.id);
   const canVerify = user && (challenge.posted_by === user.id || userProfile?.role === 'admin') && challenge.status === 'solution_submitted';
   
   const verifiedSolution = solutions.find(s => s.status === 'verified');
+  const activeTeam = teams[selectedTeamIndex] || teams[0];
 
   const statusSteps = [
     { id: 'open', label: 'Open', icon: Clock },
@@ -167,195 +232,355 @@ export default function ChallengeDetail() {
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden"
+            className="bg-white dark:bg-gray-900 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden"
           >
             {challenge.image_url && (
               <div className="h-72 w-full bg-gray-200 dark:bg-gray-800 relative">
                 <img src={challenge.image_url} alt={challenge.title} className="w-full h-full object-cover" />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent"></div>
               </div>
             )}
             
             <div className={`p-8 ${challenge.image_url ? '-mt-16 relative z-10' : ''}`}>
-              {challenge.image_url && (
-                 <div className="flex justify-between items-end mb-6">
-                    <span className="inline-flex items-center px-3 py-1 rounded-lg text-sm font-bold bg-blue-600 text-white capitalize shadow-sm">
-                      {challenge.category}
-                    </span>
-                 </div>
-              )}
-
-              {!challenge.image_url && (
-                <div className="flex justify-between items-start mb-6">
-                  <span className="inline-flex items-center px-3 py-1 rounded-lg text-sm font-bold bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200 capitalize">
-                    {challenge.category}
-                  </span>
-                </div>
-              )}
+              <div className="flex justify-between items-start mb-4">
+                <span className="inline-flex items-center px-3.5 py-1.5 rounded-xl text-xs font-extrabold bg-blue-600 text-white capitalize shadow-md">
+                  {challenge.category}
+                </span>
+                <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold capitalize ${
+                  challenge.status === 'solved'
+                    ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
+                    : challenge.status === 'in_progress'
+                    ? 'bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300'
+                    : 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
+                }`}>
+                  <span className="w-2 h-2 rounded-full bg-current"></span>
+                  {challenge.status.replace('_', ' ')}
+                </span>
+              </div>
               
-              <h1 className={`text-3xl sm:text-4xl font-extrabold mb-4 ${challenge.image_url ? 'text-white' : 'text-gray-900 dark:text-white'}`}>
+              <h1 className={`text-3xl sm:text-4xl font-extrabold mb-4 leading-tight ${challenge.image_url ? 'text-white' : 'text-gray-900 dark:text-white'}`}>
                 {challenge.title}
               </h1>
               
-              <div className="flex flex-wrap gap-4 text-sm font-medium text-gray-600 dark:text-gray-300 mb-8 pb-6 border-b border-gray-100 dark:border-gray-800">
-                <span className="flex items-center bg-gray-100 dark:bg-gray-800 px-3 py-1.5 rounded-lg"><MapPin className="w-4 h-4 mr-2"/> {challenge.location}</span>
+              <div className="flex flex-wrap gap-3 text-xs font-semibold text-gray-600 dark:text-gray-300 mb-8 pb-6 border-b border-gray-100 dark:border-gray-800">
+                <span className="flex items-center bg-gray-100 dark:bg-gray-800 px-3 py-1.5 rounded-lg"><MapPin className="w-4 h-4 mr-1.5 text-blue-500"/> {challenge.location}</span>
                 <span className="flex items-center capitalize bg-gray-100 dark:bg-gray-800 px-3 py-1.5 rounded-lg">
-                  <AlertCircle className={`w-4 h-4 mr-2 ${challenge.severity === 'high' ? 'text-red-500' : challenge.severity === 'medium' ? 'text-amber-500' : 'text-green-500'}`}/> 
+                  <AlertCircle className={`w-4 h-4 mr-1.5 ${challenge.severity === 'high' ? 'text-red-500' : challenge.severity === 'medium' ? 'text-amber-500' : 'text-green-500'}`}/> 
                   {challenge.severity} Severity
                 </span>
-                <span className="flex items-center bg-gray-100 dark:bg-gray-800 px-3 py-1.5 rounded-lg"><Calendar className="w-4 h-4 mr-2"/> {new Date(challenge.created_at).toLocaleDateString()}</span>
-                <span className="flex items-center bg-gray-100 dark:bg-gray-800 px-3 py-1.5 rounded-lg">By {posterProfile?.full_name} {posterProfile?.institution_name ? `(${posterProfile.institution_name})` : ''}</span>
+                <span className="flex items-center bg-gray-100 dark:bg-gray-800 px-3 py-1.5 rounded-lg"><Calendar className="w-4 h-4 mr-1.5 text-gray-400"/> {new Date(challenge.created_at).toLocaleDateString()}</span>
+                <span className="flex items-center bg-gray-100 dark:bg-gray-800 px-3 py-1.5 rounded-lg">Reported by {posterProfile?.full_name || 'Citizen'}</span>
               </div>
 
               <div className="prose dark:prose-invert max-w-none mb-8">
-                <h3 className="text-xl font-bold mb-3 text-gray-900 dark:text-white">Description</h3>
-                <p className="whitespace-pre-wrap text-gray-700 dark:text-gray-300 leading-relaxed text-lg">{challenge.description}</p>
+                <h3 className="text-xl font-bold mb-3 text-gray-900 dark:text-white">Community Problem Description</h3>
+                <p className="whitespace-pre-wrap text-gray-700 dark:text-gray-300 leading-relaxed text-base">{challenge.description}</p>
               </div>
 
-              {/* Show Winning Solution if it exists */}
-              {verifiedSolution && (
-                <div className="mt-8 mb-4 bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border border-green-200 dark:border-green-800/50 rounded-2xl p-6 shadow-sm">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="bg-green-100 dark:bg-green-800 text-green-700 dark:text-green-300 p-2 rounded-xl">
-                      <Trophy className="w-6 h-6" />
-                    </div>
-                    <div>
-                      <h3 className="text-xl font-extrabold text-green-900 dark:text-green-400">Winning Solution</h3>
-                      <p className="text-sm font-bold text-green-700 dark:text-green-500">
-                        By {teams.find(t => t.id === verifiedSolution.team_id)?.team_name || 'A team'}
-                      </p>
-                    </div>
-                  </div>
-                  
-                  <div className="bg-white/60 dark:bg-gray-900/60 p-5 rounded-xl text-gray-800 dark:text-gray-200 mb-6 leading-relaxed">
-                    {verifiedSolution.summary}
-                  </div>
-                  
-                  <div className="flex flex-wrap gap-4">
-                    {verifiedSolution.demo_link && (
-                      <a href={verifiedSolution.demo_link} target="_blank" rel="noreferrer" className="inline-flex items-center px-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-lg font-bold hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors shadow-sm">
-                        <ExternalLink className="w-4 h-4 mr-2" /> View Demo
-                      </a>
-                    )}
-                    {verifiedSolution.contact_email && (
-                      <a href={`mailto:${verifiedSolution.contact_email}`} className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 transition-colors shadow-sm">
-                        <Mail className="w-4 h-4 mr-2" /> Contact Team
-                      </a>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              <div className="mt-8 pt-6 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between">
+              {/* Action Buttons: Upvote & Adopt / Sponsor */}
+              <div className="pt-6 border-t border-gray-100 dark:border-gray-800 flex flex-wrap items-center justify-between gap-4">
                 <button 
                   onClick={handleUpvote}
                   disabled={hasUpvoted}
-                  className={`flex items-center px-5 py-2.5 rounded-xl font-bold transition-all shadow-sm ${hasUpvoted ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800/50' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+                  className={`flex items-center px-5 py-2.5 rounded-xl font-bold text-sm transition-all shadow-xs ${
+                    hasUpvoted 
+                      ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800/50' 
+                      : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
+                  }`}
                 >
-                  <ThumbsUp className={`w-5 h-5 mr-2 ${hasUpvoted ? 'fill-current' : ''}`} />
+                  <ThumbsUp className={`w-4 h-4 mr-2 ${hasUpvoted ? 'fill-current' : ''}`} />
                   {challenge.upvote_count} Upvotes
                 </button>
 
-                {canAdopt && (
-                  <button onClick={() => setShowAdoptModal(true)} className="px-6 py-2.5 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 shadow-md shadow-blue-600/20 transition-all">
-                    Adopt Challenge
-                  </button>
-                )}
+                <div className="flex flex-wrap items-center gap-3">
+                  {userProfile?.role === 'industry' && (
+                    <button 
+                      onClick={() => setShowSponsorModal(true)} 
+                      className="px-5 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-xl text-sm font-bold shadow-md shadow-purple-600/20 transition-all flex items-center gap-2 cursor-pointer"
+                    >
+                      <Gift className="w-4 h-4" /> Sponsor Challenge / Pledge Grant
+                    </button>
+                  )}
+
+                  {canAdopt && (
+                    <button 
+                      onClick={() => setShowAdoptModal(true)} 
+                      className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl text-sm font-bold shadow-lg shadow-blue-600/25 transition-all flex items-center gap-2 cursor-pointer hover:scale-[1.02]"
+                    >
+                      <Rocket className="w-4 h-4" /> Adopt Challenge & Submit Blueprint
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           </motion.div>
 
-          {/* Verification Panel */}
-          <AnimatePresence>
-            {canVerify && (
-              <motion.div 
-                initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}
-                className="bg-purple-50 dark:bg-purple-900/20 rounded-2xl p-6 border border-purple-100 dark:border-purple-800/50 shadow-sm overflow-hidden"
-              >
-                <h3 className="text-lg font-bold text-purple-900 dark:text-purple-300 mb-2 flex items-center">
-                  <CheckCircle className="w-5 h-5 mr-2" /> Solution Pending Verification
-                </h3>
-                <p className="text-sm text-purple-700 dark:text-purple-400 mb-4">A team has submitted a solution. Review it and mark as solved if it resolves the issue.</p>
-                {solutions.filter(s => s.status === 'submitted').map(sol => (
-                  <div key={sol.id} className="bg-white dark:bg-gray-900 p-5 rounded-xl shadow-sm border border-purple-100 dark:border-purple-800/50 mb-4">
-                    <p className="font-bold text-gray-900 dark:text-white mb-2">Summary: <span className="font-normal text-gray-700 dark:text-gray-300 block mt-1">{sol.summary}</span></p>
-                    {sol.demo_link && <p className="font-bold text-gray-900 dark:text-white mt-4">Demo Link: <a href={sol.demo_link} target="_blank" rel="noreferrer" className="text-blue-600 dark:text-blue-400 font-normal hover:underline">{sol.demo_link}</a></p>}
-                    {sol.contact_email && <p className="font-bold text-gray-900 dark:text-white mt-4">Contact Email: <a href={`mailto:${sol.contact_email}`} className="text-blue-600 dark:text-blue-400 font-normal hover:underline">{sol.contact_email}</a></p>}
-                    <div className="mt-5 flex gap-3">
-                      <button onClick={() => handleVerifySolution(sol.id, true)} className="px-5 py-2.5 bg-green-600 text-white rounded-lg font-bold hover:bg-green-700 transition-colors flex items-center"><Check className="w-4 h-4 mr-2"/> Verify & Solved</button>
-                      <button onClick={() => handleVerifySolution(sol.id, false)} className="px-5 py-2.5 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg font-bold hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors">Reject</button>
-                    </div>
+          {/* VERIFIED BEFORE / AFTER SHOWCASE (If challenge is solved) */}
+          {challenge.status === 'solved' && (
+            <BeforeAfterSlider
+              beforeImage={challenge.image_url}
+              afterImage={verificationFeedback?.after_photo_url || verifiedSolution?.demo_link}
+              feedback={verificationFeedback}
+            />
+          )}
+
+          {/* CITIZEN GROUND VERIFICATION GATE (When solution is submitted) */}
+          {canVerify && (
+            <motion.div 
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/40 dark:to-teal-950/40 rounded-3xl p-6 sm:p-8 border border-emerald-200 dark:border-emerald-800/60 shadow-lg shadow-emerald-600/5 space-y-4"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-emerald-600 text-white rounded-2xl shadow-sm">
+                  <ShieldCheck className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-extrabold text-gray-900 dark:text-white">Solution Submitted — Awaiting Ground Check</h3>
+                  <p className="text-xs text-gray-600 dark:text-gray-300 mt-0.5">
+                    As the citizen who posted this issue, please conduct a ground check and verify the solution.
+                  </p>
+                </div>
+              </div>
+
+              {solutions.filter(s => s.status === 'submitted').map(sol => (
+                <div key={sol.id} className="bg-white dark:bg-gray-900 p-5 rounded-2xl border border-emerald-100 dark:border-emerald-800/50 shadow-xs space-y-3">
+                  <p className="text-sm font-bold text-gray-900 dark:text-white">
+                    Deliverable Summary: <span className="font-normal text-gray-700 dark:text-gray-300 block mt-1">{sol.summary}</span>
+                  </p>
+                  {sol.demo_link && (
+                    <p className="text-xs font-bold text-gray-900 dark:text-white">
+                      Live Demo / Video: <a href={sol.demo_link} target="_blank" rel="noreferrer" className="text-blue-600 dark:text-blue-400 font-semibold hover:underline">{sol.demo_link}</a>
+                    </p>
+                  )}
+                  <div className="pt-2 flex gap-3">
+                    <button
+                      onClick={() => setShowVerifyModal(true)}
+                      className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs shadow-md shadow-emerald-600/20 transition-all flex items-center gap-2 cursor-pointer"
+                    >
+                      <CheckCircle2 className="w-4 h-4" /> Conduct Ground Check & Verify
+                    </button>
                   </div>
-                ))}
-              </motion.div>
-            )}
-          </AnimatePresence>
+                </div>
+              ))}
+            </motion.div>
+          )}
 
-          {/* Teams & Progress */}
+          {/* SOLVER TEAMS & MILESTONE ROADMAP WORKSPACE */}
           {teams.length > 0 && (
-            <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800">
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-6">Teams Working On This</h3>
-              <div className="space-y-6">
-                {teams.map(team => {
-                  const tUpdates = progressUpdates.filter(pu => pu.team_id === team.id);
-                  const isMyTeam = team.created_by === user?.id;
-                  const hasSubmitted = solutions.some(s => s.team_id === team.id);
+            <div className="bg-white dark:bg-gray-900 rounded-3xl p-6 sm:p-8 shadow-sm border border-gray-100 dark:border-gray-800 space-y-6">
+              
+              {/* Workspace Header with Team Selector (if multiple teams) */}
+              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 pb-4 border-b border-gray-100 dark:border-gray-800">
+                <div>
+                  <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 text-xs font-bold uppercase tracking-wider mb-1">
+                    <Activity className="w-4 h-4" /> Innovation Workspace
+                  </div>
+                  <h3 className="text-2xl font-extrabold text-gray-900 dark:text-white">
+                    {teams.length > 1 ? `Participating Teams (${teams.length})` : 'Active Solver Team'}
+                  </h3>
+                </div>
 
-                  return (
-                    <div key={team.id} className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
-                      <div className="bg-gray-50 dark:bg-gray-800/50 p-5 flex justify-between items-start border-b border-gray-200 dark:border-gray-700">
-                        <div>
-                          <h4 className="text-lg font-bold text-gray-900 dark:text-white flex items-center flex-wrap gap-2">
-                            {team.team_name} 
-                            <span className="text-xs font-bold bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 px-2.5 py-1 rounded-md text-gray-600 dark:text-gray-300 shadow-sm">{team.institution_name}</span>
-                            {team.is_sponsored && <span className="text-xs font-bold bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-400 border border-amber-200 dark:border-amber-800/50 px-2.5 py-1 rounded-md shadow-sm">Sponsored</span>}
-                          </h4>
-                          <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mt-2 flex items-center"><Users className="w-4 h-4 mr-1.5"/> {team.members.join(', ')}</p>
-                        </div>
-                        {isMyTeam && challenge.status !== 'solved' && !hasSubmitted && (
-                          <button onClick={() => setShowSolutionModal(true)} className="px-4 py-2 bg-green-600 text-white text-sm font-bold rounded-lg hover:bg-green-700 shadow-sm transition-colors">
-                            Submit Solution
-                          </button>
+                {/* Team Switcher Tabs */}
+                {teams.length > 1 && (
+                  <div className="flex gap-2 overflow-x-auto pb-1">
+                    {teams.map((t, idx) => (
+                      <button
+                        key={t.id}
+                        onClick={() => setSelectedTeamIndex(idx)}
+                        className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
+                          selectedTeamIndex === idx
+                            ? 'bg-blue-600 text-white shadow-xs'
+                            : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
+                        }`}
+                      >
+                        {t.team_name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Selected Team Profile Card */}
+              {activeTeam && (
+                <div className="bg-gray-50 dark:bg-gray-800/40 rounded-2xl p-5 border border-gray-200 dark:border-gray-700/60 space-y-4">
+                  <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2">
+                    <div>
+                      <h4 className="text-lg font-extrabold text-gray-900 dark:text-white flex items-center gap-2">
+                        {activeTeam.team_name}
+                        <span className="text-xs font-semibold px-2.5 py-0.5 rounded-md bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300">
+                          {activeTeam.institution_name}
+                        </span>
+                        {activeTeam.is_sponsored && (
+                          <span className="text-xs font-bold bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 px-2.5 py-0.5 rounded-md">
+                            Industry Sponsor
+                          </span>
                         )}
+                      </h4>
+                      {activeTeam.mentor_name && (
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          Faculty / Mentor: <span className="font-semibold text-gray-700 dark:text-gray-300">{activeTeam.mentor_name}</span>
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Team Leader Solution Submission CTA */}
+                    {activeTeam.created_by === user?.id && challenge.status !== 'solved' && !solutions.some(s => s.team_id === activeTeam.id) && (
+                      <button
+                        onClick={() => setShowSolutionModal(true)}
+                        className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold rounded-xl shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
+                      >
+                        Submit Final Solution
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Tech Stack Badges */}
+                  {activeTeam.tech_stack && activeTeam.tech_stack.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 items-center">
+                      <span className="text-[11px] font-bold text-gray-400 uppercase mr-1">Tech Stack:</span>
+                      {activeTeam.tech_stack.map(tech => (
+                        <span key={tech} className="px-2.5 py-1 bg-white dark:bg-gray-800 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60 rounded-lg text-xs font-semibold shadow-2xs">
+                          {tech}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Navigation Tabs inside Team Workspace */}
+                  <div className="flex gap-2 pt-2 border-t border-gray-200 dark:border-gray-700/60">
+                    <button
+                      onClick={() => setActiveTeamTab('milestones')}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                        activeTeamTab === 'milestones'
+                          ? 'bg-blue-600 text-white shadow-xs'
+                          : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-100'
+                      }`}
+                    >
+                      <Layers className="w-3.5 h-3.5 inline mr-1.5" /> Milestones & Sprints
+                    </button>
+                    <button
+                      onClick={() => setActiveTeamTab('blueprint')}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                        activeTeamTab === 'blueprint'
+                          ? 'bg-blue-600 text-white shadow-xs'
+                          : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-100'
+                      }`}
+                    >
+                      <FileCode2 className="w-3.5 h-3.5 inline mr-1.5" /> Technical Blueprint
+                    </button>
+                    <button
+                      onClick={() => setActiveTeamTab('feed')}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                        activeTeamTab === 'feed'
+                          ? 'bg-blue-600 text-white shadow-xs'
+                          : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-100'
+                      }`}
+                    >
+                      <Activity className="w-3.5 h-3.5 inline mr-1.5" /> Updates Feed ({progressUpdates.filter(pu => pu.team_id === activeTeam.id).length})
+                    </button>
+                  </div>
+
+                  {/* TAB 1: SPRINT MILESTONE TRACKER */}
+                  {activeTeamTab === 'milestones' && (
+                    <div className="pt-2">
+                      <MilestoneTracker
+                        challengeId={id}
+                        team={activeTeam}
+                        user={user}
+                        isTeamLeader={activeTeam.created_by === user?.id}
+                        onMilestonesUpdated={fetchData}
+                      />
+                    </div>
+                  )}
+
+                  {/* TAB 2: TECHNICAL BLUEPRINT */}
+                  {activeTeamTab === 'blueprint' && (
+                    <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl border border-gray-200 dark:border-gray-700/60 space-y-4">
+                      <div>
+                        <h5 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Proposed Solution Architecture</h5>
+                        <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
+                          {activeTeam.proposal_summary || 'No detailed blueprint submitted yet.'}
+                        </p>
                       </div>
 
-                      <div className="p-5 bg-white dark:bg-gray-900">
-                        <h5 className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-4">Progress Feed</h5>
-                        
-                        <div className="space-y-4 mb-5 max-h-80 overflow-y-auto pr-2 custom-scrollbar">
-                          {tUpdates.length === 0 ? <p className="text-sm text-gray-400 dark:text-gray-500 italic">No updates posted yet.</p> : tUpdates.map(pu => (
-                            <div key={pu.id} className="bg-gray-50 dark:bg-gray-800 p-4 rounded-xl text-sm border border-gray-100 dark:border-gray-700/50 relative">
-                              <div className="flex items-center gap-2 mb-1">
-                                <div className="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 flex items-center justify-center font-bold text-xs">
-                                  {pu.profiles?.full_name?.charAt(0)}
-                                </div>
-                                <span className="font-bold text-gray-900 dark:text-white">{pu.profiles?.full_name}</span>
-                                <span className="text-xs text-gray-400 dark:text-gray-500 ml-auto">{new Date(pu.created_at).toLocaleDateString()}</span>
-                              </div>
-                              <p className="text-gray-700 dark:text-gray-300 mt-2 leading-relaxed ml-8">{pu.text}</p>
-                            </div>
-                          ))}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-gray-100 dark:border-gray-800">
+                        <div>
+                          <h5 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Target Timeline</h5>
+                          <p className="text-xs font-bold text-gray-800 dark:text-gray-200">{activeTeam.estimated_timeline || 'Standard Timeline'}</p>
                         </div>
 
-                        {isMyTeam && challenge.status !== 'solved' && !hasSubmitted && (
-                          <div className="flex gap-3">
-                            <input
-                              type="text"
-                              value={newProgressText}
-                              onChange={(e) => setNewProgressText(e.target.value)}
-                              placeholder="Share a quick update with everyone..."
-                              className="flex-1 px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white transition-all"
-                            />
-                            <button onClick={() => handlePostProgress(team.id)} className="px-5 py-2.5 bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-sm font-bold rounded-lg hover:bg-gray-800 dark:hover:bg-gray-100 shadow-sm transition-colors">
-                              Post
-                            </button>
+                        {activeTeam.grant_requested > 0 && (
+                          <div>
+                            <h5 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Grant Requested</h5>
+                            <p className="text-xs font-extrabold text-emerald-600 dark:text-emerald-400">₹ {activeTeam.grant_requested.toLocaleString()}</p>
+                          </div>
+                        )}
+
+                        {activeTeam.repo_url && (
+                          <div className="sm:col-span-2">
+                            <h5 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Repository / Design</h5>
+                            <a href={activeTeam.repo_url} target="_blank" rel="noreferrer" className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1">
+                              <ExternalLink className="w-3.5 h-3.5" /> {activeTeam.repo_url}
+                            </a>
                           </div>
                         )}
                       </div>
+
+                      {/* Team Members List */}
+                      <div className="pt-2 border-t border-gray-100 dark:border-gray-800">
+                        <h5 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Roster & Assigned Roles</h5>
+                        <div className="flex flex-wrap gap-2">
+                          {activeTeam.members?.map((m, i) => (
+                            <span key={i} className="px-3 py-1 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-xs font-semibold text-gray-700 dark:text-gray-300">
+                              👤 {m}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
                     </div>
-                  );
-                })}
-              </div>
+                  )}
+
+                  {/* TAB 3: PROTOTYPE PROGRESS FEED */}
+                  {activeTeamTab === 'feed' && (
+                    <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl border border-gray-200 dark:border-gray-700/60 space-y-4">
+                      <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
+                        {progressUpdates.filter(pu => pu.team_id === activeTeam.id).length === 0 ? (
+                          <p className="text-xs text-gray-400 italic py-4 text-center">No updates posted yet.</p>
+                        ) : (
+                          progressUpdates.filter(pu => pu.team_id === activeTeam.id).map(pu => (
+                            <div key={pu.id} className="p-3.5 bg-gray-50 dark:bg-gray-800 rounded-xl text-xs border border-gray-100 dark:border-gray-700">
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="font-bold text-gray-900 dark:text-white">{pu.profiles?.full_name || 'Team Member'}</span>
+                                <span className="text-[10px] text-gray-400">{new Date(pu.created_at).toLocaleDateString()}</span>
+                              </div>
+                              <p className="text-gray-700 dark:text-gray-300 leading-relaxed">{pu.text}</p>
+                            </div>
+                          ))
+                        )}
+                      </div>
+
+                      {activeTeam.created_by === user?.id && challenge.status !== 'solved' && (
+                        <div className="flex gap-2 pt-2 border-t border-gray-100 dark:border-gray-800">
+                          <input
+                            type="text"
+                            value={newProgressText}
+                            onChange={(e) => setNewProgressText(e.target.value)}
+                            placeholder="Share an update on prototype tests..."
+                            className="flex-1 px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-xs text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                          <button
+                            onClick={() => handlePostProgress(activeTeam.id)}
+                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold"
+                          >
+                            Post
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -363,10 +588,10 @@ export default function ChallengeDetail() {
         {/* Sidebar */}
         <div className="w-full lg:w-80 flex-shrink-0 flex flex-col gap-6 lg:sticky lg:top-24 lg:h-[calc(100vh-8rem)]">
           
-          {/* Vertical Status Timeline */}
-          <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800">
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-6">Status Tracker</h3>
-            <div className="space-y-6 relative">
+          {/* Status Tracker */}
+          <div className="bg-white dark:bg-gray-900 p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-800">
+            <h3 className="text-base font-bold text-gray-900 dark:text-white mb-5">Lifecycle Tracker</h3>
+            <div className="space-y-5 relative">
               <div className="absolute left-3.5 top-2 bottom-4 w-0.5 bg-gray-200 dark:bg-gray-800"></div>
               {statusSteps.map((step, idx) => {
                 const Icon = step.icon;
@@ -374,11 +599,13 @@ export default function ChallengeDetail() {
                 const isCurrent = idx === currentStatusIndex;
                 
                 return (
-                  <div key={step.id} className="relative flex items-center gap-4 z-10">
-                    <div className={`w-7 h-7 rounded-full flex items-center justify-center border-2 shadow-sm transition-colors ${isCompleted ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-700 text-gray-400'}`}>
+                  <div key={step.id} className="relative flex items-center gap-3.5 z-10">
+                    <div className={`w-7 h-7 rounded-full flex items-center justify-center border-2 shadow-xs transition-colors ${
+                      isCompleted ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-700 text-gray-400'
+                    }`}>
                       {isCompleted ? <Check className="w-3.5 h-3.5" /> : <Icon className="w-3.5 h-3.5" />}
                     </div>
-                    <span className={`font-bold text-sm ${isCurrent ? 'text-blue-600 dark:text-blue-400' : isCompleted ? 'text-gray-900 dark:text-gray-300' : 'text-gray-400 dark:text-gray-600'}`}>
+                    <span className={`font-bold text-xs ${isCurrent ? 'text-blue-600 dark:text-blue-400' : isCompleted ? 'text-gray-900 dark:text-gray-300' : 'text-gray-400 dark:text-gray-600'}`}>
                       {step.label}
                     </span>
                   </div>
@@ -387,25 +614,30 @@ export default function ChallengeDetail() {
             </div>
           </div>
 
-          {/* Chat-like Comments */}
-          <div className="bg-white dark:bg-gray-900 flex flex-col flex-1 min-h-0 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800">
+          {/* Discussion */}
+          <div className="bg-white dark:bg-gray-900 flex flex-col flex-1 min-h-0 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-800">
             <div className="p-4 border-b border-gray-100 dark:border-gray-800">
-              <h3 className="font-bold text-gray-900 dark:text-white">Discussion</h3>
+              <h3 className="font-bold text-sm text-gray-900 dark:text-white">Community Discussion</h3>
             </div>
             
-            <div className="flex-1 p-4 overflow-y-auto space-y-4 bg-gray-50 dark:bg-gray-900/50 custom-scrollbar">
+            <div className="flex-1 p-4 overflow-y-auto space-y-3 bg-gray-50/50 dark:bg-gray-900/50 custom-scrollbar">
               {comments.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center text-gray-400 dark:text-gray-500">
-                  <Send className="w-8 h-8 mb-2 opacity-50" />
-                  <p className="text-sm font-medium">Start the conversation</p>
+                <div className="h-full flex flex-col items-center justify-center text-gray-400 dark:text-gray-500 py-6">
+                  <Send className="w-7 h-7 mb-1.5 opacity-50" />
+                  <p className="text-xs font-medium">Start the conversation</p>
                 </div>
               ) : (
                 comments.map(c => {
                   const isMe = user && c.user_id === user.id;
                   return (
-                    <div key={c.id} className={`flex flex-col max-w-[85%] ${isMe ? 'ml-auto items-end' : 'mr-auto items-start'}`}>
-                      <span className="text-[10px] font-bold text-gray-500 dark:text-gray-400 mb-1 px-1">{isMe ? 'You' : c.profiles?.full_name}</span>
-                      <div className={`px-4 py-2.5 rounded-2xl text-sm shadow-sm ${isMe ? 'bg-blue-600 text-white rounded-br-sm' : 'bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 text-gray-800 dark:text-gray-200 rounded-bl-sm'}`}>
+                    <div key={c.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400">{c.profiles?.full_name || 'User'}</span>
+                        <span className="text-[9px] text-gray-400">{new Date(c.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                      </div>
+                      <div className={`p-3 rounded-2xl max-w-[90%] text-xs shadow-2xs ${
+                        isMe ? 'bg-blue-600 text-white rounded-tr-xs' : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 border border-gray-100 dark:border-gray-700/80 rounded-tl-xs'
+                      }`}>
                         {c.text}
                       </div>
                     </div>
@@ -414,100 +646,140 @@ export default function ChallengeDetail() {
               )}
             </div>
 
-            <div className="p-4 bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800">
-              {user ? (
-                <form onSubmit={handlePostComment} className="flex items-center gap-2 relative">
-                  <input
-                    type="text"
-                    value={newCommentText}
-                    onChange={(e) => setNewCommentText(e.target.value)}
-                    placeholder="Type a message..."
-                    className="flex-1 pl-4 pr-10 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white transition-all"
-                  />
-                  <button type="submit" disabled={!newCommentText.trim()} className="absolute right-1.5 p-1.5 bg-blue-600 text-white rounded-full hover:bg-blue-700 disabled:opacity-50 transition-colors">
-                    <Send className="w-4 h-4 translate-x-px -translate-y-px" />
-                  </button>
-                </form>
-              ) : (
-                <p className="text-sm font-medium text-gray-500 dark:text-gray-400 text-center py-2">Log in to join discussion.</p>
-              )}
-            </div>
+            <form onSubmit={handlePostComment} className="p-3 border-t border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newCommentText}
+                  onChange={(e) => setNewCommentText(e.target.value)}
+                  placeholder={user ? "Write a message..." : "Log in to join discussion"}
+                  disabled={!user}
+                  className="flex-1 px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-xs text-gray-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                />
+                <button
+                  type="submit"
+                  disabled={!user || !newCommentText.trim()}
+                  className="p-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-2xs cursor-pointer"
+                >
+                  <Send className="w-4 h-4" />
+                </button>
+              </div>
+            </form>
           </div>
         </div>
-
       </div>
 
-      {/* Animated Modals */}
-      <AnimatePresence>
-        {showAdoptModal && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowAdoptModal(false)} className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-md w-full p-8 border border-gray-100 dark:border-gray-800">
-              <h2 className="text-2xl font-extrabold mb-6 text-gray-900 dark:text-white">Adopt Challenge</h2>
-              <form onSubmit={handleAdoptChallenge} className="space-y-5">
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">Team Name</label>
-                  <input required type="text" value={teamName} onChange={e => setTeamName(e.target.value)} className="block w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 dark:text-white transition-all" />
-                </div>
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">Members (comma separated)</label>
-                  <input required type="text" value={membersStr} onChange={e => setMembersStr(e.target.value)} placeholder="Alice, Bob..." className="block w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 dark:text-white transition-all" />
-                </div>
-                {userProfile?.role === 'industry' && (
-                  <>
-                    <label className="flex items-center p-4 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer">
-                      <input type="checkbox" checked={isSponsored} onChange={e => setIsSponsored(e.target.checked)} className="h-4 w-4 text-blue-600 rounded focus:ring-blue-500 bg-white border-gray-300" />
-                      <span className="ml-3 font-bold text-sm text-gray-900 dark:text-white">Mark as Sponsored</span>
-                    </label>
-                    <AnimatePresence>
-                      {isSponsored && (
-                        <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-                          <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5 mt-2">Mentor Name</label>
-                          <input type="text" value={mentorName} onChange={e => setMentorName(e.target.value)} className="block w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 dark:text-white transition-all" />
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </>
-                )}
-                <div className="mt-8 flex gap-3 justify-end">
-                  <button type="button" onClick={() => setShowAdoptModal(false)} className="px-5 py-2.5 font-bold rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">Cancel</button>
-                  <button type="submit" className="px-5 py-2.5 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 transition-colors shadow-md shadow-blue-600/20">Create Team</button>
-                </div>
-              </form>
-            </motion.div>
-          </div>
-        )}
+      {/* ADOPT CHALLENGE MULTI-STEP WIZARD */}
+      <AdoptChallengeModal
+        isOpen={showAdoptModal}
+        onClose={() => setShowAdoptModal(false)}
+        challenge={challenge}
+        user={user}
+        userProfile={userProfile}
+        onTeamCreated={(newTeam) => {
+          setTeams([...teams, newTeam]);
+          fetchData();
+        }}
+      />
 
-        {showSolutionModal && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowSolutionModal(false)} className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-lg w-full p-8 border border-gray-100 dark:border-gray-800">
-              <h2 className="text-2xl font-extrabold mb-6 text-gray-900 dark:text-white">Submit Final Solution</h2>
-              <form onSubmit={(e) => handleSubmitSolution(e, myTeam.id)} className="space-y-5">
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">Solution Summary</label>
-                  <textarea required rows={5} value={solutionSummary} onChange={e => setSolutionSummary(e.target.value)} placeholder="Describe your solution in detail..." className="block w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 dark:text-white transition-all resize-none"></textarea>
-                </div>
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">Demo Link (Optional)</label>
-                  <input type="url" value={demoLink} onChange={e => setDemoLink(e.target.value)} placeholder="https://github.com/..." className="block w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 dark:text-white transition-all" />
-                </div>
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5 flex justify-between">
-                    <span>Contact Email</span>
-                    <span className="text-blue-500 font-normal text-xs">For investors / partners</span>
-                  </label>
-                  <input required type="email" value={contactEmail} onChange={e => setContactEmail(e.target.value)} placeholder="team@example.com" className="block w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 dark:text-white transition-all" />
-                </div>
-                <div className="mt-8 flex gap-3 justify-end">
-                  <button type="button" onClick={() => setShowSolutionModal(false)} className="px-5 py-2.5 font-bold rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">Cancel</button>
-                  <button type="submit" className="px-5 py-2.5 bg-green-600 text-white rounded-lg font-bold hover:bg-green-700 transition-colors shadow-md shadow-green-600/20">Submit Solution</button>
-                </div>
-              </form>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      {/* CITIZEN GROUND VERIFICATION MODAL */}
+      <CitizenVerificationModal
+        isOpen={showVerifyModal}
+        onClose={() => setShowVerifyModal(false)}
+        challenge={challenge}
+        solution={solutions.find(s => s.status === 'submitted') || solutions[0]}
+        user={user}
+        onVerified={() => {
+          fetchData();
+        }}
+      />
+
+      {/* SUBMIT FINAL SOLUTION MODAL */}
+      {showSolutionModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white dark:bg-gray-900 w-full max-w-lg rounded-3xl p-6 sm:p-8 shadow-2xl border border-gray-100 dark:border-gray-800 space-y-5">
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white">Submit Final Solution</h3>
+            <form onSubmit={(e) => handleSubmitSolution(e, activeTeam?.id || myTeam?.id)} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-1">Solution Summary *</label>
+                <textarea
+                  required
+                  rows={4}
+                  value={solutionSummary}
+                  onChange={(e) => setSolutionSummary(e.target.value)}
+                  placeholder="Describe your working solution, architecture, and impact..."
+                  className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-xs text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-1">Live Demo / Video / Repository Link</label>
+                <input
+                  type="url"
+                  value={demoLink}
+                  onChange={(e) => setDemoLink(e.target.value)}
+                  placeholder="https://..."
+                  className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-xs text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-1">Contact Email for Municipal & Industry Grants</label>
+                <input
+                  type="email"
+                  value={contactEmail}
+                  onChange={(e) => setContactEmail(e.target.value)}
+                  placeholder="team@university.edu"
+                  className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-xs text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-3 border-t border-gray-100 dark:border-gray-800">
+                <button type="button" onClick={() => setShowSolutionModal(false)} className="px-4 py-2 text-xs font-bold text-gray-500 hover:text-gray-700">Cancel</button>
+                <button type="submit" className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-600/20">Submit Solution</button>
+              </div>
+            </form>
+          </motion.div>
+        </div>
+      )}
+
+      {/* INDUSTRY SPONSOR MODAL */}
+      {showSponsorModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white dark:bg-gray-900 w-full max-w-lg rounded-3xl p-6 sm:p-8 shadow-2xl border border-gray-100 dark:border-gray-800 space-y-5">
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white">Pledge Grant / Sponsor Challenge</h3>
+            <form onSubmit={handleSponsorChallenge} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-1">Company / Organization *</label>
+                <input
+                  type="text"
+                  required
+                  value={sponsorOrg}
+                  onChange={(e) => setSponsorOrg(e.target.value)}
+                  placeholder="e.g. Tata Motors / Infosys Foundation"
+                  className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-xs text-gray-900 dark:text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-1">Grant / Sponsorship Amount (₹ INR)</label>
+                <input
+                  type="text"
+                  value={grantAmount}
+                  onChange={(e) => setGrantAmount(e.target.value)}
+                  placeholder="e.g. ₹ 50,000"
+                  className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-xs text-gray-900 dark:text-white"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-3 border-t border-gray-100 dark:border-gray-800">
+                <button type="button" onClick={() => setShowSponsorModal(false)} className="px-4 py-2 text-xs font-bold text-gray-500 hover:text-gray-700">Cancel</button>
+                <button type="submit" disabled={sponsorLoading} className="px-6 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold shadow-md shadow-purple-600/20">{sponsorLoading ? 'Pledging...' : 'Confirm Sponsorship'}</button>
+              </div>
+            </form>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }
