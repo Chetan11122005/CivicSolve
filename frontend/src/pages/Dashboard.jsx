@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Target, Users, CheckCircle, Clock, ShieldCheck, ChevronRight, Activity, Star } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Dashboard() {
   const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
+  const navigate = useNavigate();
   
   // Data
   const [myChallenges, setMyChallenges] = useState([]);
@@ -26,9 +28,59 @@ export default function Dashboard() {
   const fetchDashboardData = async () => {
     setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user) {
+      navigate('/auth');
+      return;
+    }
+    setUser(user);
 
-    const { data: profileData } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+    let { data: profileData } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
+
+    // If profile is missing (e.g. first-time Google OAuth login), auto-provision it
+    if (!profileData) {
+      let pendingRole = 'citizen';
+      let pendingInstitution = null;
+      let pendingFullName = user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'Civic Solver';
+
+      const pendingProfileStr = localStorage.getItem('pending_oauth_profile');
+      if (pendingProfileStr) {
+        try {
+          const parsed = JSON.parse(pendingProfileStr);
+          if (parsed.role) pendingRole = parsed.role;
+          if (parsed.institutionName) pendingInstitution = parsed.institutionName;
+          if (parsed.fullName) pendingFullName = parsed.fullName;
+        } catch (e) {
+          console.error('Error parsing pending oauth profile:', e);
+        }
+        localStorage.removeItem('pending_oauth_profile');
+      }
+
+      const { data: newProfile, error: insertError } = await supabase
+        .from('profiles')
+        .upsert({
+          id: user.id,
+          full_name: pendingFullName,
+          role: pendingRole,
+          institution_name: ['university', 'industry'].includes(pendingRole) ? pendingInstitution : null,
+        })
+        .select()
+        .maybeSingle();
+
+      if (!insertError && newProfile) {
+        profileData = newProfile;
+      }
+    }
+
+    // Safety fallback
+    if (!profileData) {
+      profileData = {
+        id: user.id,
+        full_name: user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'User',
+        role: 'citizen',
+        institution_name: null,
+      };
+    }
+
     setProfile(profileData);
 
     if (profileData.role === 'citizen') {
@@ -93,32 +145,41 @@ export default function Dashboard() {
       <div className="w-full md:w-72 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 flex flex-col flex-shrink-0">
         <div className="p-6 border-b border-gray-200 dark:border-gray-800">
           <div className="flex items-center gap-4 mb-4">
-            <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white text-xl font-bold shadow-sm">
-              {profile.full_name.charAt(0)}
-            </div>
-            <div>
-              <h2 className="font-bold text-gray-900 dark:text-white truncate">{profile.full_name}</h2>
+            {user?.user_metadata?.avatar_url ? (
+              <img
+                src={user.user_metadata.avatar_url}
+                alt={profile?.full_name || 'User'}
+                className="w-12 h-12 rounded-full object-cover shadow-xs border border-gray-200 dark:border-gray-700"
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white text-xl font-bold shadow-xs flex-shrink-0">
+                {(profile?.full_name || 'U').charAt(0).toUpperCase()}
+              </div>
+            )}
+            <div className="overflow-hidden">
+              <h2 className="font-bold text-gray-900 dark:text-white truncate">{profile?.full_name || 'User'}</h2>
               <span className="inline-block px-2.5 py-0.5 rounded-md text-xs font-bold bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 border border-blue-100 dark:border-blue-800/50 capitalize mt-1">
-                {profile.role}
+                {profile?.role || 'citizen'}
               </span>
             </div>
           </div>
         </div>
         
         <div className="p-4 space-y-2 flex-1 overflow-y-auto">
-          {profile.role === 'citizen' && (
+          {profile?.role === 'citizen' && (
             <>
               <SidebarItem id="my_challenges" label="My Challenges" icon={Target} count={myChallenges.length} />
             </>
           )}
 
-          {['university', 'industry'].includes(profile.role) && (
+          {['university', 'industry'].includes(profile?.role) && (
             <>
               <SidebarItem id="my_teams" label="My Teams" icon={Users} count={myTeams.length} />
             </>
           )}
 
-          {profile.role === 'admin' && (
+          {profile?.role === 'admin' && (
             <>
               <div className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2 mt-4 px-4">Admin Tasks</div>
               <SidebarItem id="pending" label="Pending Approvals" icon={ShieldCheck} count={pendingApprovals.length} />

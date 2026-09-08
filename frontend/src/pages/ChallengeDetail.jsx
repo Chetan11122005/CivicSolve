@@ -46,9 +46,9 @@ export default function ChallengeDetail() {
     setUser(user);
     
     if (user) {
-      const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+      const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
       setUserProfile(profile);
-      const { data: upvote } = await supabase.from('upvotes').select('id').eq('challenge_id', id).eq('user_id', user.id).single();
+      const { data: upvote } = await supabase.from('upvotes').select('id').eq('challenge_id', id).eq('user_id', user.id).maybeSingle();
       setHasUpvoted(!!upvote);
     }
 
@@ -56,7 +56,7 @@ export default function ChallengeDetail() {
     if (challengeError) { console.error(challengeError); setLoading(false); return; }
     setChallenge(challengeData);
 
-    const { data: posterData } = await supabase.from('profiles').select('*').eq('id', challengeData.posted_by).single();
+    const { data: posterData } = await supabase.from('profiles').select('*').eq('id', challengeData.posted_by).maybeSingle();
     setPosterProfile(posterData);
 
     const { data: commentsData } = await supabase.from('comments').select('*, profiles(full_name)').eq('challenge_id', id).order('created_at', { ascending: true });

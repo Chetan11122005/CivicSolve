@@ -1,6 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
-import { Moon, Sun, LogOut, Globe, PlusCircle } from 'lucide-react';
+import { Moon, Sun, LogOut, Globe } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -62,15 +62,6 @@ export default function Navbar() {
                 <option value="ta" className="bg-white dark:bg-gray-900">தம (தமிழ்)</option>
               </select>
             </div>
-
-            {/* Post Challenge Shortcut */}
-            <Link 
-              to="/post-challenge" 
-              className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-bold bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 border border-blue-200 dark:border-blue-800 px-3 py-1.5 rounded-lg transition-colors"
-            >
-              <PlusCircle className="w-4 h-4" />
-              <span className="hidden md:inline">{t('navbar.postChallenge')}</span>
-            </Link>
 
             {/* Dark Mode Toggle */}
             <button
