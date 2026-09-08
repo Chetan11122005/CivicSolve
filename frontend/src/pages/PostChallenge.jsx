@@ -27,8 +27,8 @@ export default function PostChallenge() {
       return;
     }
 
-    const geminiKey = import.meta.env.VITE_GEMINI_API_KEY;
-    const openRouterKey = import.meta.env.VITE_OPENROUTER_API_KEY;
+    const geminiKey = (import.meta.env.VITE_GEMINI_API_KEY || '').trim();
+    const openRouterKey = (import.meta.env.VITE_OPENROUTER_API_KEY || '').trim();
     const apiKey = openRouterKey || geminiKey;
 
     if (!apiKey) {
@@ -52,8 +52,10 @@ export default function PostChallenge() {
 
       let responseText = "";
 
-      if (apiKey.startsWith('sk-or-')) {
-        // Use OpenRouter API
+      const isOpenRouter = !!openRouterKey || apiKey.startsWith('sk-or-') || apiKey.startsWith('sk-');
+
+      if (isOpenRouter) {
+        // Use OpenRouter API with supported Gemini models & max_tokens limit
         const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
           method: "POST",
           headers: {
@@ -61,7 +63,9 @@ export default function PostChallenge() {
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
-            model: "google/gemini-flash-1.5",
+            models: ["google/gemini-2.5-flash-lite", "google/gemini-2.5-flash"],
+            max_tokens: 300,
+            temperature: 0.1,
             messages: [{ role: "user", content: prompt }]
           })
         });
@@ -73,7 +77,7 @@ export default function PostChallenge() {
         }
 
         const data = await response.json();
-        responseText = data.choices[0].message.content;
+        responseText = data.choices?.[0]?.message?.content || "";
       } else {
         // Use native Google Gemini SDK
         const genAI = new GoogleGenerativeAI(apiKey);
@@ -82,9 +86,12 @@ export default function PostChallenge() {
         responseText = result.response.text();
       }
       
-      // Clean up markdown if the AI mistakenly includes it
-      const cleanJson = responseText.replace(/```json/gi, '').replace(/```/g, '').trim();
-      const parsed = JSON.parse(cleanJson);
+      // Robustly extract and parse JSON from the AI response
+      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error("Could not parse AI classification response. Raw response: " + responseText);
+      }
+      const parsed = JSON.parse(jsonMatch[0]);
 
       if (parsed.category && CATEGORIES.includes(parsed.category.toLowerCase())) {
         setCategory(parsed.category.toLowerCase());
