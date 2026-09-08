@@ -137,51 +137,84 @@ export default function AdoptChallengeModal({ isOpen, onClose, challenge, user, 
         tech_stack: selectedTech,
         estimated_timeline: estimatedTimeline,
         repo_url: repoUrl.trim() || null,
-        grant_requested: grantRequested ? parseFloat(grantRequested) : 0,
-        is_sponsored: false
+        grant_requested: grantRequested ? parseFloat(grantRequested) : 0
       };
 
-      const { data: newTeam, error: teamError } = await supabase
+      let newTeam = null;
+      const { data: fullTeam, error: teamError } = await supabase
         .from('teams')
         .insert([newTeamPayload])
         .select('*')
-        .single();
+        .maybeSingle();
 
-      if (teamError) throw teamError;
+      if (teamError) {
+        console.warn('Extended columns failed, falling back to core teams schema:', teamError);
+        // Fallback for core schema
+        const corePayload = {
+          challenge_id: challenge.id,
+          team_name: teamName.trim(),
+          institution_name: orgName,
+          created_by: user.id,
+          members: formattedMembers,
+          mentor_name: mentorName.trim() || null,
+          is_sponsored: false
+        };
+        const { data: coreTeam, error: coreError } = await supabase
+          .from('teams')
+          .insert([corePayload])
+          .select('*')
+          .single();
 
-      // Ensure default milestones exist (fallback if DB trigger hasn't run yet)
-      const { data: existingMilestones } = await supabase
-        .from('milestones')
-        .select('id')
-        .eq('team_id', newTeam.id);
+        if (coreError) throw coreError;
+        newTeam = {
+          ...coreTeam,
+          proposal_summary: proposalSummary.trim(),
+          tech_stack: selectedTech,
+          estimated_timeline: estimatedTimeline,
+          repo_url: repoUrl.trim() || null,
+          grant_requested: grantRequested ? parseFloat(grantRequested) : 0
+        };
+      } else {
+        newTeam = fullTeam;
+      }
 
-      if (!existingMilestones || existingMilestones.length === 0) {
-        await supabase.from('milestones').insert([
-          {
-            team_id: newTeam.id,
-            challenge_id: challenge.id,
-            milestone_number: 1,
-            title: '1. Ground Survey & Problem Analysis',
-            description: 'Inspect physical site, assess root causes, and finalize design schematics.',
-            status: 'in_progress'
-          },
-          {
-            team_id: newTeam.id,
-            challenge_id: challenge.id,
-            milestone_number: 2,
-            title: '2. Working Prototype & POC',
-            description: 'Build functional prototype (hardware/software), run bench tests, and record demo video.',
-            status: 'in_progress'
-          },
-          {
-            team_id: newTeam.id,
-            challenge_id: challenge.id,
-            milestone_number: 3,
-            title: '3. Community Field Testing & Deployment',
-            description: 'Deploy on ground for citizen testing, measure impact, and prepare handover report.',
-            status: 'in_progress'
-          }
-        ]);
+      // Try ensuring default milestones (swallow error if milestones table does not exist)
+      try {
+        const { data: existingMilestones } = await supabase
+          .from('milestones')
+          .select('id')
+          .eq('team_id', newTeam.id);
+
+        if (!existingMilestones || existingMilestones.length === 0) {
+          await supabase.from('milestones').insert([
+            {
+              team_id: newTeam.id,
+              challenge_id: challenge.id,
+              milestone_number: 1,
+              title: '1. Ground Survey & Problem Analysis',
+              description: 'Inspect physical site, assess root causes, and finalize design schematics.',
+              status: 'in_progress'
+            },
+            {
+              team_id: newTeam.id,
+              challenge_id: challenge.id,
+              milestone_number: 2,
+              title: '2. Working Prototype & POC',
+              description: 'Build functional prototype (hardware/software), run bench tests, and record demo video.',
+              status: 'in_progress'
+            },
+            {
+              team_id: newTeam.id,
+              challenge_id: challenge.id,
+              milestone_number: 3,
+              title: '3. Community Field Testing & Deployment',
+              description: 'Deploy on ground for citizen testing, measure impact, and prepare handover report.',
+              status: 'in_progress'
+            }
+          ]);
+        }
+      } catch (mErr) {
+        console.warn('Milestones table not yet migrated, skipping table insert:', mErr);
       }
 
       // Update challenge status to in_progress if still open

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { 
   ThumbsUp, 
@@ -17,7 +17,9 @@ import {
   Activity,
   CheckCircle2,
   FileCode2,
-  Rocket
+  Rocket,
+  ArrowLeft,
+  ExternalLink
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import AdoptChallengeModal from '../components/AdoptChallengeModal';
@@ -74,53 +76,73 @@ export default function ChallengeDetail() {
 
   const fetchData = async () => {
     setLoading(true);
-    const { data: { user } } = await supabase.auth.getUser();
-    setUser(user);
-    
-    if (user) {
-      const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
-      setUserProfile(profile);
-      if (profile) {
-        setSponsorOrg(profile.institution_name || profile.full_name || '');
-        setSponsorMentor(profile.full_name || '');
-        setSponsorEmail(user.email || '');
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
+      
+      if (user) {
+        const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
+        setUserProfile(profile);
+        if (profile) {
+          setSponsorOrg(profile.institution_name || profile.full_name || '');
+          setSponsorMentor(profile.full_name || '');
+          setSponsorEmail(user.email || '');
+        }
+        const { data: upvote } = await supabase.from('upvotes').select('id').eq('challenge_id', id).eq('user_id', user.id).maybeSingle();
+        setHasUpvoted(!!upvote);
       }
-      const { data: upvote } = await supabase.from('upvotes').select('id').eq('challenge_id', id).eq('user_id', user.id).maybeSingle();
-      setHasUpvoted(!!upvote);
+
+      const { data: challengeData, error: challengeError } = await supabase.from('challenges').select('*').eq('id', id).single();
+      if (challengeError) { 
+        console.error(challengeError); 
+        setLoading(false); 
+        return; 
+      }
+      setChallenge(challengeData);
+
+      if (challengeData.posted_by) {
+        const { data: posterData } = await supabase.from('profiles').select('*').eq('id', challengeData.posted_by).maybeSingle();
+        setPosterProfile(posterData);
+      }
+
+      const { data: commentsData } = await supabase.from('comments').select('*, profiles(full_name)').eq('challenge_id', id).order('created_at', { ascending: true });
+      setComments(commentsData || []);
+
+      const { data: teamsData } = await supabase.from('teams').select('*').eq('challenge_id', id);
+      setTeams(teamsData || []);
+
+      const { data: progressData } = await supabase.from('progress_updates').select('*, profiles(full_name)').eq('challenge_id', id).order('created_at', { ascending: false });
+      setProgressUpdates(progressData || []);
+
+      const { data: solutionsData } = await supabase.from('solutions').select('*').eq('challenge_id', id);
+      setSolutions(solutionsData || []);
+
+      // Safe query for verification feedback
+      try {
+        const { data: feedbackData } = await supabase
+          .from('verification_feedback')
+          .select('*')
+          .eq('challenge_id', id)
+          .order('created_at', { ascending: false })
+          .maybeSingle();
+        setVerificationFeedback(feedbackData);
+      } catch (err) {
+        console.warn('verification_feedback table check:', err);
+      }
+    } catch (err) {
+      console.error('Error fetching challenge details:', err);
+    } finally {
+      setLoading(false);
     }
-
-    const { data: challengeData, error: challengeError } = await supabase.from('challenges').select('*').eq('id', id).single();
-    if (challengeError) { console.error(challengeError); setLoading(false); return; }
-    setChallenge(challengeData);
-
-    const { data: posterData } = await supabase.from('profiles').select('*').eq('id', challengeData.posted_by).maybeSingle();
-    setPosterProfile(posterData);
-
-    const { data: commentsData } = await supabase.from('comments').select('*, profiles(full_name)').eq('challenge_id', id).order('created_at', { ascending: true });
-    setComments(commentsData || []);
-
-    const { data: teamsData } = await supabase.from('teams').select('*').eq('challenge_id', id);
-    setTeams(teamsData || []);
-
-    const { data: progressData } = await supabase.from('progress_updates').select('*, profiles(full_name)').eq('challenge_id', id).order('created_at', { ascending: false });
-    setProgressUpdates(progressData || []);
-
-    const { data: solutionsData } = await supabase.from('solutions').select('*').eq('challenge_id', id);
-    setSolutions(solutionsData || []);
-
-    const { data: feedbackData } = await supabase.from('verification_feedback').select('*').eq('challenge_id', id).order('created_at', { ascending: false }).maybeSingle();
-    setVerificationFeedback(feedbackData);
-
-    setLoading(false);
   };
 
   const handleUpvote = async () => {
     if (!user) return alert("Please log in to upvote.");
     if (hasUpvoted) return;
     await supabase.from('upvotes').insert([{ challenge_id: id, user_id: user.id }]);
-    await supabase.from('challenges').update({ upvote_count: challenge.upvote_count + 1 }).eq('id', id);
+    await supabase.from('challenges').update({ upvote_count: (challenge.upvote_count || 0) + 1 }).eq('id', id);
     setHasUpvoted(true);
-    setChallenge({ ...challenge, upvote_count: challenge.upvote_count + 1 });
+    setChallenge({ ...challenge, upvote_count: (challenge.upvote_count || 0) + 1 });
   };
 
   const handlePostComment = async (e) => {
@@ -201,11 +223,22 @@ export default function ChallengeDetail() {
   };
 
   if (loading) return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center">
-      <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+    <div className="min-h-[calc(100vh-64px)] bg-white dark:bg-gray-950 flex flex-col items-center justify-center">
+      <div className="w-9 h-9 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+      <p className="text-xs font-bold text-gray-500 tracking-wider uppercase">Loading Challenge Workspace...</p>
     </div>
   );
-  if (!challenge) return <div className="text-center py-20 text-red-500 font-medium">Challenge not found.</div>;
+
+  if (!challenge) return (
+    <div className="min-h-[calc(100vh-64px)] bg-white dark:bg-gray-950 flex flex-col items-center justify-center p-6 text-center">
+      <AlertCircle className="w-12 h-12 text-red-500 mb-3" />
+      <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Challenge Not Found</h2>
+      <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">The challenge you are looking for may have been removed or does not exist.</p>
+      <Link to="/discover" className="px-5 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold shadow-md">
+        Back to Discover
+      </Link>
+    </div>
+  );
 
   const canAdopt = userProfile && ['university', 'industry', 'citizen'].includes(userProfile.role) && challenge.status !== 'solved';
   const myTeam = teams.find(t => t.created_by === user?.id);
@@ -289,7 +322,7 @@ export default function ChallengeDetail() {
                   }`}
                 >
                   <ThumbsUp className={`w-4 h-4 mr-2 ${hasUpvoted ? 'fill-current' : ''}`} />
-                  {challenge.upvote_count} Upvotes
+                  {challenge.upvote_count || 0} Upvotes
                 </button>
 
                 <div className="flex flex-wrap items-center gap-3">
@@ -436,7 +469,7 @@ export default function ChallengeDetail() {
                   </div>
 
                   {/* Tech Stack Badges */}
-                  {activeTeam.tech_stack && activeTeam.tech_stack.length > 0 && (
+                  {Array.isArray(activeTeam.tech_stack) && activeTeam.tech_stack.length > 0 && (
                     <div className="flex flex-wrap gap-1.5 items-center">
                       <span className="text-[11px] font-bold text-gray-400 uppercase mr-1">Tech Stack:</span>
                       {activeTeam.tech_stack.map(tech => (
@@ -510,10 +543,10 @@ export default function ChallengeDetail() {
                           <p className="text-xs font-bold text-gray-800 dark:text-gray-200">{activeTeam.estimated_timeline || 'Standard Timeline'}</p>
                         </div>
 
-                        {activeTeam.grant_requested > 0 && (
+                        {Number(activeTeam?.grant_requested) > 0 && (
                           <div>
                             <h5 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Grant Requested</h5>
-                            <p className="text-xs font-extrabold text-emerald-600 dark:text-emerald-400">₹ {activeTeam.grant_requested.toLocaleString()}</p>
+                            <p className="text-xs font-extrabold text-emerald-600 dark:text-emerald-400">₹ {Number(activeTeam.grant_requested).toLocaleString()}</p>
                           </div>
                         )}
 
@@ -531,11 +564,17 @@ export default function ChallengeDetail() {
                       <div className="pt-2 border-t border-gray-100 dark:border-gray-800">
                         <h5 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Roster & Assigned Roles</h5>
                         <div className="flex flex-wrap gap-2">
-                          {activeTeam.members?.map((m, i) => (
-                            <span key={i} className="px-3 py-1 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-xs font-semibold text-gray-700 dark:text-gray-300">
-                              👤 {m}
+                          {Array.isArray(activeTeam?.members) ? (
+                            activeTeam.members.map((m, i) => (
+                              <span key={i} className="px-3 py-1 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-xs font-semibold text-gray-700 dark:text-gray-300">
+                                👤 {m}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-xs text-gray-500">
+                              {typeof activeTeam?.members === 'string' ? activeTeam.members : 'No roster listed'}
                             </span>
-                          ))}
+                          )}
                         </div>
                       </div>
                     </div>
@@ -735,8 +774,8 @@ export default function ChallengeDetail() {
               </div>
 
               <div className="flex justify-end gap-3 pt-3 border-t border-gray-100 dark:border-gray-800">
-                <button type="button" onClick={() => setShowSolutionModal(false)} className="px-4 py-2 text-xs font-bold text-gray-500 hover:text-gray-700">Cancel</button>
-                <button type="submit" className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-600/20">Submit Solution</button>
+                <button type="button" onClick={() => setShowSolutionModal(false)} className="px-4 py-2 text-xs font-bold text-gray-500 hover:text-gray-700 cursor-pointer">Cancel</button>
+                <button type="submit" className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-600/20 cursor-pointer">Submit Solution</button>
               </div>
             </form>
           </motion.div>
@@ -773,8 +812,8 @@ export default function ChallengeDetail() {
               </div>
 
               <div className="flex justify-end gap-3 pt-3 border-t border-gray-100 dark:border-gray-800">
-                <button type="button" onClick={() => setShowSponsorModal(false)} className="px-4 py-2 text-xs font-bold text-gray-500 hover:text-gray-700">Cancel</button>
-                <button type="submit" disabled={sponsorLoading} className="px-6 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold shadow-md shadow-purple-600/20">{sponsorLoading ? 'Pledging...' : 'Confirm Sponsorship'}</button>
+                <button type="button" onClick={() => setShowSponsorModal(false)} className="px-4 py-2 text-xs font-bold text-gray-500 hover:text-gray-700 cursor-pointer">Cancel</button>
+                <button type="submit" disabled={sponsorLoading} className="px-6 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold shadow-md shadow-purple-600/20 cursor-pointer">{sponsorLoading ? 'Pledging...' : 'Confirm Sponsorship'}</button>
               </div>
             </form>
           </motion.div>
