@@ -1,15 +1,19 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
-import { Search, MapPin, AlertCircle, ThumbsUp, Filter } from 'lucide-react';
+import { Search, MapPin, AlertCircle, ThumbsUp, Filter, LayoutGrid, Map as MapIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
+import ChallengeMap from '../components/ChallengeMap';
 
 const CATEGORIES = ['water', 'health', 'education', 'infrastructure', 'environment', 'safety', 'other'];
 
 export default function Discover() {
+  const { t } = useTranslation();
   const [challenges, setChallenges] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showMobileFilters, setShowMobileFilters] = useState(false);
+  const [viewMode, setViewMode] = useState('grid'); // 'grid' | 'map'
 
   // Filters
   const [search, setSearch] = useState('');
@@ -117,49 +121,49 @@ export default function Discover() {
   const FiltersContent = () => (
     <div className="space-y-6">
       <div>
-        <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-3">Sort By</h3>
+        <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-3">{t('discover.sortBy')}</h3>
         <select
           value={sortBy}
           onChange={(e) => setSortBy(e.target.value)}
           className="w-full pl-3 pr-10 py-2.5 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white appearance-none"
         >
-          <option value="newest">Newest</option>
-          <option value="upvoted">Most Upvoted</option>
-          <option value="urgent">Most Urgent</option>
+          <option value="newest">{t('discover.newest')}</option>
+          <option value="upvoted">{t('discover.mostUpvoted')}</option>
+          <option value="urgent">{t('discover.high')}</option>
         </select>
       </div>
 
       <div>
-        <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-3">Status</h3>
+        <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-3">{t('discover.status')}</h3>
         <select
           value={statusFilter}
           onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
           className="w-full pl-3 pr-10 py-2.5 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white appearance-none"
         >
-          <option value="All">All Statuses</option>
-          <option value="open">Open</option>
-          <option value="in_progress">In Progress</option>
-          <option value="solution_submitted">Solution Submitted</option>
-          <option value="solved">Solved</option>
+          <option value="All">{t('discover.allStatuses')}</option>
+          <option value="open">{t('discover.open')}</option>
+          <option value="in_progress">{t('discover.in_progress')}</option>
+          <option value="solution_submitted">{t('discover.solution_submitted')}</option>
+          <option value="solved">{t('discover.solved')}</option>
         </select>
       </div>
 
       <div>
-        <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-3">Severity</h3>
+        <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-3">{t('discover.severity')}</h3>
         <select
           value={severityFilter}
           onChange={(e) => { setSeverityFilter(e.target.value); setPage(1); }}
           className="w-full pl-3 pr-10 py-2.5 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white appearance-none"
         >
-          <option value="All">All Severities</option>
-          <option value="high">High</option>
-          <option value="medium">Medium</option>
-          <option value="low">Low</option>
+          <option value="All">{t('discover.allSeverities')}</option>
+          <option value="high">{t('discover.high')}</option>
+          <option value="medium">{t('discover.medium')}</option>
+          <option value="low">{t('discover.low')}</option>
         </select>
       </div>
 
       <div>
-        <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-3">Categories</h3>
+        <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-3">{t('discover.categories')}</h3>
         <div className="space-y-3">
           {CATEGORIES.map(cat => (
             <label key={cat} className="flex items-center group cursor-pointer">
@@ -175,7 +179,7 @@ export default function Discover() {
                 </svg>
               </div>
               <span className="ml-3 text-sm text-gray-700 dark:text-gray-300 capitalize group-hover:text-gray-900 dark:group-hover:text-white transition-colors">
-                {cat}
+                {t(`categories.${cat}`)}
               </span>
             </label>
           ))}
@@ -187,25 +191,63 @@ export default function Discover() {
   return (
     <div className="min-h-[calc(100vh-64px)] bg-gray-50 dark:bg-gray-950 py-8 px-4 sm:px-6 lg:px-8 transition-colors">
       <div className="max-w-7xl mx-auto">
+        
+        {/* Header Bar */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-          <h1 className="text-3xl font-extrabold text-gray-900 dark:text-white">Discover Challenges</h1>
+          <div>
+            <h1 className="text-3xl font-extrabold text-gray-900 dark:text-white">{t('discover.title')}</h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              {processed.length} {t('discover.title').toLowerCase()}
+            </p>
+          </div>
           
-          <div className="flex gap-2 w-full md:w-auto">
-            <div className="relative flex-1 md:w-96">
+          <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+            
+            {/* View Switcher: Grid vs Map */}
+            <div className="flex items-center bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-1 rounded-xl shadow-sm">
+              <button
+                onClick={() => setViewMode('grid')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
+                  viewMode === 'grid'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                }`}
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+                <span>{t('discover.gridView')}</span>
+              </button>
+
+              <button
+                onClick={() => setViewMode('map')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
+                  viewMode === 'map'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                }`}
+              >
+                <MapIcon className="w-3.5 h-3.5" />
+                <span>{t('discover.mapView')}</span>
+              </button>
+            </div>
+
+            {/* Search Input */}
+            <div className="relative flex-1 md:w-80">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Search className="h-5 w-5 text-gray-400" />
+                <Search className="h-4 w-4 text-gray-400" />
               </div>
               <input
                 type="text"
-                placeholder="Search challenges..."
+                placeholder={t('discover.searchPlaceholder')}
                 value={search}
                 onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-                className="block w-full pl-10 pr-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow shadow-sm"
+                className="block w-full pl-9 pr-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow shadow-sm"
               />
             </div>
+
+            {/* Mobile Filter Toggle */}
             <button 
               onClick={() => setShowMobileFilters(!showMobileFilters)}
-              className="md:hidden p-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-700 dark:text-gray-300 shadow-sm"
+              className="md:hidden p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-700 dark:text-gray-300 shadow-sm cursor-pointer"
             >
               <Filter className="w-5 h-5" />
             </button>
@@ -236,7 +278,7 @@ export default function Discover() {
             )}
           </AnimatePresence>
 
-          {/* Grid */}
+          {/* Main Content Area */}
           <div className="flex-1">
             {loading ? (
               <div className="grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-6">
@@ -263,10 +305,24 @@ export default function Discover() {
                 <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
                   <Search className="w-8 h-8 text-gray-400" />
                 </div>
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">No challenges found</h3>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">{t('discover.noChallenges')}</h3>
                 <p className="text-gray-500 dark:text-gray-400">Try adjusting your filters or search terms.</p>
               </motion.div>
+            ) : viewMode === 'map' ? (
+              /* Map View */
+              <div className="space-y-4">
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Interactive Geographic Explorer ({processed.length} Locations)
+                  </span>
+                  <span className="text-xs font-semibold text-blue-600 dark:text-blue-400">
+                    Click pins for details
+                  </span>
+                </div>
+                <ChallengeMap challenges={processed} />
+              </div>
             ) : (
+              /* Grid View */
               <>
                 <motion.div 
                   layout
@@ -297,10 +353,10 @@ export default function Discover() {
                         <div className="p-5 flex-1 flex flex-col relative bg-white dark:bg-gray-900">
                           <div className="flex justify-between items-start mb-3 gap-2">
                             <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200 capitalize">
-                              {challenge.category}
+                              {t(`categories.${challenge.category}`)}
                             </span>
                             <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold capitalize ${getStatusColor(challenge.status)}`}>
-                              {challenge.status.replace('_', ' ')}
+                              {t(`discover.${challenge.status}`) || challenge.status.replace('_', ' ')}
                             </span>
                           </div>
                           
@@ -317,7 +373,7 @@ export default function Discover() {
                             <div className="flex items-center gap-4">
                               <span className="flex items-center text-sm font-medium text-gray-600 dark:text-gray-400 capitalize bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded-md">
                                 {getSeverityIcon(challenge.severity)}
-                                {challenge.severity}
+                                {t(`discover.${challenge.severity}`) || challenge.severity}
                               </span>
                               <span className="flex items-center text-sm font-medium text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded-md">
                                 <ThumbsUp className="w-3.5 h-3.5 mr-1.5 text-gray-400" />
@@ -327,9 +383,9 @@ export default function Discover() {
                             
                             <button 
                               onClick={() => navigate(`/challenge/${challenge.id}`)}
-                              className="text-sm font-bold text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors"
+                              className="text-sm font-bold text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors cursor-pointer"
                             >
-                              View &rarr;
+                              {t('discover.viewChallenge')} &rarr;
                             </button>
                           </div>
                         </div>
@@ -344,7 +400,7 @@ export default function Discover() {
                     <button
                       disabled={page === 1}
                       onClick={() => setPage(p => p - 1)}
-                      className="px-4 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-sm font-bold text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 transition-colors shadow-sm"
+                      className="px-4 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-sm font-bold text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 transition-colors shadow-sm cursor-pointer"
                     >
                       Previous
                     </button>
@@ -354,7 +410,7 @@ export default function Discover() {
                     <button
                       disabled={page === totalPages}
                       onClick={() => setPage(p => p + 1)}
-                      className="px-4 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-sm font-bold text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 transition-colors shadow-sm"
+                      className="px-4 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-sm font-bold text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 transition-colors shadow-sm cursor-pointer"
                     >
                       Next
                     </button>

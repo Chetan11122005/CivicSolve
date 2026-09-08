@@ -3,8 +3,10 @@ import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { ArrowRight, Globe, CheckCircle, Building2, Briefcase, MapPin, Sparkles, ShieldCheck, Zap, Activity, Users, Lightbulb, Map } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 
 export default function Home() {
+  const { t } = useTranslation();
   const [stats, setStats] = useState({
     total: 0,
     solved: 0,
@@ -75,22 +77,22 @@ export default function Home() {
             
             <motion.div variants={containerVariants} initial="hidden" animate="visible">
               <motion.h1 variants={itemVariants} className="text-5xl md:text-7xl font-extrabold tracking-tight text-gray-900 dark:text-white mb-6 leading-tight">
-                Where real problems <br className="hidden md:block" /> 
+                {t('hero.titleLine1')} <br className="hidden md:block" /> 
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400">
-                  meet real solvers.
+                  {t('hero.titleLine2')}
                 </span>
               </motion.h1>
               
               <motion.p variants={itemVariants} className="max-w-2xl text-xl text-gray-600 dark:text-gray-400 mx-auto mb-10 leading-relaxed">
-                A collaborative platform bridging the gap between citizens facing societal challenges and the university teams and industry experts ready to solve them.
+                {t('hero.subtitle')}
               </motion.p>
               
               <motion.div variants={itemVariants} className="flex flex-col sm:flex-row justify-center gap-4">
                 <Link to="/post-challenge" className="inline-flex justify-center items-center px-8 py-3.5 border border-transparent text-base font-bold rounded-xl text-white bg-blue-600 hover:bg-blue-700 md:text-lg shadow-lg shadow-blue-600/30 transition-all hover:scale-105 hover:-translate-y-1">
-                  Post a Challenge
+                  {t('hero.postChallengeBtn')}
                 </Link>
                 <Link to="/discover" className="inline-flex justify-center items-center px-8 py-3.5 border border-gray-200 dark:border-gray-800 text-base font-bold rounded-xl text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800 md:text-lg shadow-sm transition-all hover:scale-105 hover:-translate-y-1">
-                  Explore Challenges
+                  {t('hero.exploreBtn')}
                 </Link>
               </motion.div>
             </motion.div>
@@ -104,22 +106,22 @@ export default function Home() {
               <div>
                 <div className="flex items-center justify-center text-blue-500 mb-3"><Globe className="w-8 h-8" /></div>
                 <div className="text-4xl md:text-5xl font-extrabold text-white mb-2">{stats.total}</div>
-                <div className="text-sm font-bold text-gray-400 uppercase tracking-widest">Challenges Posted</div>
+                <div className="text-sm font-bold text-gray-400 uppercase tracking-widest">{t('stats.posted')}</div>
               </div>
               <div>
                 <div className="flex items-center justify-center text-green-500 mb-3"><CheckCircle className="w-8 h-8" /></div>
                 <div className="text-4xl md:text-5xl font-extrabold text-white mb-2">{stats.solved}</div>
-                <div className="text-sm font-bold text-gray-400 uppercase tracking-widest">Challenges Solved</div>
+                <div className="text-sm font-bold text-gray-400 uppercase tracking-widest">{t('stats.solved')}</div>
               </div>
               <div>
                 <div className="flex items-center justify-center text-purple-500 mb-3"><Building2 className="w-8 h-8" /></div>
                 <div className="text-4xl md:text-5xl font-extrabold text-white mb-2">{stats.universities}</div>
-                <div className="text-sm font-bold text-gray-400 uppercase tracking-widest">Institutions</div>
+                <div className="text-sm font-bold text-gray-400 uppercase tracking-widest">{t('stats.institutions')}</div>
               </div>
               <div>
                 <div className="flex items-center justify-center text-amber-500 mb-3"><Briefcase className="w-8 h-8" /></div>
                 <div className="text-4xl md:text-5xl font-extrabold text-white mb-2">{stats.industry}</div>
-                <div className="text-sm font-bold text-gray-400 uppercase tracking-widest">Industry Partners</div>
+                <div className="text-sm font-bold text-gray-400 uppercase tracking-widest">{t('stats.industry')}</div>
               </div>
             </div>
           </div>
@@ -129,8 +131,8 @@ export default function Home() {
         <div className="py-24 bg-gray-50 dark:bg-gray-950 relative">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
             <div className="text-center mb-16">
-              <h2 className="text-3xl md:text-4xl font-extrabold text-gray-900 dark:text-white mb-4">How CivicSolve Works</h2>
-              <p className="text-xl text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">A seamless pipeline turning community complaints into funded reality.</p>
+              <h2 className="text-3xl md:text-4xl font-extrabold text-gray-900 dark:text-white mb-4">{t('howItWorks.title')}</h2>
+              <p className="text-xl text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">{t('howItWorks.subtitle')}</p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-12 relative">
@@ -141,24 +143,24 @@ export default function Home() {
                 <div className="w-24 h-24 bg-white dark:bg-gray-900 rounded-full flex items-center justify-center shadow-xl border border-gray-100 dark:border-gray-800 mb-6 group transition-transform hover:scale-110">
                   <Lightbulb className="w-10 h-10 text-blue-600 dark:text-blue-400 group-hover:text-blue-500" />
                 </div>
-                <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-3">1. Report (Citizen)</h3>
-                <p className="text-gray-600 dark:text-gray-400 leading-relaxed">Citizens geo-tag local issues. Our AI instantly categorizes the problem and extracts key data to alert the right experts.</p>
+                <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-3">{t('howItWorks.step1Title')}</h3>
+                <p className="text-gray-600 dark:text-gray-400 leading-relaxed">{t('howItWorks.step1Desc')}</p>
               </div>
 
               <div className="relative z-10 flex flex-col items-center text-center">
                 <div className="w-24 h-24 bg-white dark:bg-gray-900 rounded-full flex items-center justify-center shadow-xl border border-gray-100 dark:border-gray-800 mb-6 group transition-transform hover:scale-110">
                   <Users className="w-10 h-10 text-purple-600 dark:text-purple-400 group-hover:text-purple-500" />
                 </div>
-                <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-3">2. Adopt (University)</h3>
-                <p className="text-gray-600 dark:text-gray-400 leading-relaxed">University students discover challenges, form teams, and use the platform to collaborate and post live prototype updates.</p>
+                <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-3">{t('howItWorks.step2Title')}</h3>
+                <p className="text-gray-600 dark:text-gray-400 leading-relaxed">{t('howItWorks.step2Desc')}</p>
               </div>
 
               <div className="relative z-10 flex flex-col items-center text-center">
                 <div className="w-24 h-24 bg-white dark:bg-gray-900 rounded-full flex items-center justify-center shadow-xl border border-gray-100 dark:border-gray-800 mb-6 group transition-transform hover:scale-110">
                   <ShieldCheck className="w-10 h-10 text-green-600 dark:text-green-400 group-hover:text-green-500" />
                 </div>
-                <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-3">3. Verify & Fund (Industry)</h3>
-                <p className="text-gray-600 dark:text-gray-400 leading-relaxed">Once verified, winning solutions are showcased to industry partners who can contact the team for grants or deployment.</p>
+                <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-3">{t('howItWorks.step3Title')}</h3>
+                <p className="text-gray-600 dark:text-gray-400 leading-relaxed">{t('howItWorks.step3Desc')}</p>
               </div>
             </div>
           </div>
@@ -168,8 +170,8 @@ export default function Home() {
         <div className="py-24 bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-16">
-              <h2 className="text-3xl md:text-4xl font-extrabold text-gray-900 dark:text-white mb-4">Powered by Next-Gen Tech</h2>
-              <p className="text-xl text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">Built from the ground up to eliminate friction and accelerate innovation.</p>
+              <h2 className="text-3xl md:text-4xl font-extrabold text-gray-900 dark:text-white mb-4">{t('bento.title')}</h2>
+              <p className="text-xl text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">{t('bento.subtitle')}</p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 auto-rows-[250px]">
@@ -180,8 +182,8 @@ export default function Home() {
                   <Sparkles className="w-8 h-8 text-indigo-600 dark:text-indigo-400" />
                 </div>
                 <div className="relative z-10">
-                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Google Gemini AI Integration</h3>
-                  <p className="text-gray-600 dark:text-gray-300 max-w-md">Our Auto-Categorization engine uses LLMs to read unstructured citizen complaints and instantly extract severity, location, and metadata.</p>
+                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{t('bento.aiTitle')}</h3>
+                  <p className="text-gray-600 dark:text-gray-300 max-w-md">{t('bento.aiDesc')}</p>
                 </div>
                 <div className="absolute -bottom-10 -right-10 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl group-hover:bg-blue-500/20 transition-colors"></div>
               </div>
@@ -192,8 +194,8 @@ export default function Home() {
                   <Activity className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
                 </div>
                 <div className="relative z-10">
-                  <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Live Progress Tracking</h3>
-                  <p className="text-gray-600 dark:text-gray-300 text-sm">Teams post real-time updates directly to a public timeline, ensuring complete transparency.</p>
+                  <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">{t('bento.liveTitle')}</h3>
+                  <p className="text-gray-600 dark:text-gray-300 text-sm">{t('bento.liveDesc')}</p>
                 </div>
               </div>
 
@@ -203,8 +205,8 @@ export default function Home() {
                   <Map className="w-6 h-6 text-orange-600 dark:text-orange-400" />
                 </div>
                 <div className="relative z-10">
-                  <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Geo-Discovery</h3>
-                  <p className="text-gray-600 dark:text-gray-300 text-sm">Filter and search for hyper-local problems in your exact neighborhood or district.</p>
+                  <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">{t('bento.geoTitle')}</h3>
+                  <p className="text-gray-600 dark:text-gray-300 text-sm">{t('bento.geoDesc')}</p>
                 </div>
               </div>
 
@@ -214,8 +216,8 @@ export default function Home() {
                   <Zap className="w-8 h-8 text-purple-600 dark:text-purple-400" />
                 </div>
                 <div className="relative z-10">
-                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Frictionless Verification</h3>
-                  <p className="text-gray-600 dark:text-gray-300 max-w-md">Once a solution is submitted, it undergoes a rigorous community verification process before it is officially showcased to investors.</p>
+                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{t('bento.verifyTitle')}</h3>
+                  <p className="text-gray-600 dark:text-gray-300 max-w-md">{t('bento.verifyDesc')}</p>
                 </div>
                 <div className="absolute -bottom-10 -left-10 w-64 h-64 bg-purple-500/10 rounded-full blur-3xl group-hover:bg-purple-500/20 transition-colors"></div>
               </div>
@@ -228,15 +230,15 @@ export default function Home() {
         <div className="py-24 bg-gray-50 dark:bg-gray-950 border-t border-gray-100 dark:border-gray-800">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-16">
-              <h2 className="text-3xl md:text-4xl font-extrabold text-gray-900 dark:text-white mb-4">Success Stories</h2>
-              <p className="text-xl text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">Real-world impact created by collaborative teams across the nation.</p>
+              <h2 className="text-3xl md:text-4xl font-extrabold text-gray-900 dark:text-white mb-4">{t('successStories.title')}</h2>
+              <p className="text-xl text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">{t('successStories.subtitle')}</p>
             </div>
 
             {loading ? (
-              <div className="text-center text-gray-500 dark:text-gray-400 py-12">Loading success stories...</div>
+              <div className="text-center text-gray-500 dark:text-gray-400 py-12">{t('successStories.loading')}</div>
             ) : featuredChallenges.length === 0 ? (
               <div className="text-center text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-900 p-12 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
-                Check back soon for featured success stories!
+                {t('successStories.empty')}
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -249,7 +251,7 @@ export default function Home() {
                       <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden flex flex-col h-full group-hover:shadow-2xl group-hover:border-blue-500/50 group-hover:-translate-y-2 transition-all duration-300 relative">
                         
                         <div className="absolute top-4 right-4 z-10 bg-green-500/90 backdrop-blur-sm text-white px-3 py-1 rounded-full text-xs font-bold shadow-sm flex items-center">
-                          <ShieldCheck className="w-3.5 h-3.5 mr-1" /> Verified
+                          <ShieldCheck className="w-3.5 h-3.5 mr-1" /> {t('successStories.verified')}
                         </div>
 
                         {challenge.image_url ? (
@@ -267,11 +269,11 @@ export default function Home() {
                           </div>
                           <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-3 line-clamp-2">{challenge.title}</h3>
                           <p className="text-gray-600 dark:text-gray-400 text-sm mb-6 flex-1 line-clamp-3">
-                            <span className="font-semibold text-gray-900 dark:text-white block mb-1">The Solution:</span>
+                            <span className="font-semibold text-gray-900 dark:text-white block mb-1">{t('successStories.theSolution')}</span>
                             {summaryText}
                           </p>
                           <div className="flex items-center text-blue-600 dark:text-blue-400 font-bold text-sm group-hover:text-blue-700 dark:group-hover:text-blue-300">
-                            Read full case study <ArrowRight className="ml-1.5 w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                            {t('successStories.readCaseStudy')} <ArrowRight className="ml-1.5 w-4 h-4 group-hover:translate-x-1 transition-transform" />
                           </div>
                         </div>
                       </div>
@@ -287,11 +289,11 @@ export default function Home() {
         <div className="bg-blue-600 dark:bg-blue-900 py-20 relative overflow-hidden">
           <div className="absolute top-0 right-0 -translate-y-12 translate-x-1/3 w-96 h-96 bg-white/10 rounded-full blur-3xl pointer-events-none"></div>
           <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
-            <h2 className="text-3xl md:text-5xl font-extrabold text-white mb-6">Ready to impact your city?</h2>
-            <p className="text-xl text-blue-100 mb-10">Join thousands of citizens, students, and companies working together to build better communities.</p>
+            <h2 className="text-3xl md:text-5xl font-extrabold text-white mb-6">{t('cta.title')}</h2>
+            <p className="text-xl text-blue-100 mb-10">{t('cta.subtitle')}</p>
             <div className="flex flex-col sm:flex-row justify-center gap-4">
               <Link to="/auth" className="inline-flex justify-center items-center px-8 py-4 border border-transparent text-lg font-bold rounded-xl text-blue-600 bg-white hover:bg-gray-50 shadow-xl transition-transform hover:scale-105">
-                Join CivicSolve Today
+                {t('cta.joinBtn')}
               </Link>
             </div>
           </div>
@@ -307,13 +309,13 @@ export default function Home() {
             <div className="text-2xl font-bold text-white tracking-tight">CivicSolve</div>
           </div>
           <div className="flex flex-col sm:flex-row justify-center items-center gap-6 mb-8 text-sm font-medium">
-            <Link to="/auth" className="hover:text-white transition-colors">Sign up as a Citizen</Link>
+            <Link to="/auth" className="hover:text-white transition-colors">{t('footer.citizen')}</Link>
             <span className="hidden sm:inline opacity-30">•</span>
-            <Link to="/auth" className="hover:text-white transition-colors">Join as a University</Link>
+            <Link to="/auth" className="hover:text-white transition-colors">{t('footer.university')}</Link>
             <span className="hidden sm:inline opacity-30">•</span>
-            <Link to="/auth" className="hover:text-white transition-colors">Partner as Industry</Link>
+            <Link to="/auth" className="hover:text-white transition-colors">{t('footer.industry')}</Link>
           </div>
-          <p className="text-sm opacity-60">© 2026 CivicSolve. All rights reserved.</p>
+          <p className="text-sm opacity-60">{t('footer.rights')}</p>
         </div>
       </footer>
 

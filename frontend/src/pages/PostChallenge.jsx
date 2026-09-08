@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { UploadCloud, CheckCircle, AlertCircle, Sparkles, Loader2 } from 'lucide-react';
+import { UploadCloud, CheckCircle, AlertCircle, Sparkles, Loader2, MapPin, Navigation } from 'lucide-react';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { useTranslation } from 'react-i18next';
 
 const CATEGORIES = ['water', 'health', 'education', 'infrastructure', 'environment', 'safety', 'other'];
 
 export default function PostChallenge() {
+  const { t } = useTranslation();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('infrastructure');
@@ -16,10 +18,68 @@ export default function PostChallenge() {
   
   const [loading, setLoading] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
+  const [locLoading, setLocLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
 
   const navigate = useNavigate();
+
+  // GPS Location Auto-Detection
+  const handleAutoDetectLocation = () => {
+    if (!navigator.geolocation) {
+      setError("Geolocation is not supported by your browser.");
+      return;
+    }
+
+    setLocLoading(true);
+    setError(null);
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          const { latitude, longitude } = position.coords;
+          
+          // Call free OpenStreetMap reverse geocoding API
+          const response = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=14&addressdetails=1`,
+            {
+              headers: {
+                'Accept-Language': 'en'
+              }
+            }
+          );
+
+          if (!response.ok) {
+            throw new Error("Unable to fetch address from coordinates.");
+          }
+
+          const data = await response.json();
+          const addr = data.address || {};
+          
+          // Construct clean human-readable address
+          const locality = addr.suburb || addr.neighbourhood || addr.residential || addr.road || '';
+          const city = addr.city || addr.town || addr.village || addr.county || addr.state_district || '';
+          const state = addr.state || '';
+          
+          const parts = [locality, city, state].filter(Boolean);
+          const formattedLocation = parts.length > 0 ? parts.join(', ') : data.display_name.split(',').slice(0, 3).join(',');
+
+          setLocation(formattedLocation || `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
+        } catch (err) {
+          console.error("Geocoding error:", err);
+          setError("Location detected, but address lookup failed. Please type city name.");
+        } finally {
+          setLocLoading(false);
+        }
+      },
+      (geoErr) => {
+        console.error("GPS Error:", geoErr);
+        setLocLoading(false);
+        setError("GPS permission denied or unavailable. Please enter location manually.");
+      },
+      { timeout: 10000, enableHighAccuracy: true }
+    );
+  };
 
   const handleAiAssist = async () => {
     if (!description) {
@@ -164,42 +224,42 @@ export default function PostChallenge() {
         <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 p-8 sm:p-12">
           
           <div className="mb-8 text-center">
-            <h1 className="text-3xl font-extrabold text-gray-900 dark:text-white">Post a Civic Challenge</h1>
-            <p className="mt-2 text-gray-600 dark:text-gray-400">Describe the problem in your community so solvers can help.</p>
+            <h1 className="text-3xl font-extrabold text-gray-900 dark:text-white">{t('postChallenge.heading')}</h1>
+            <p className="mt-2 text-gray-600 dark:text-gray-400">{t('postChallenge.subheading')}</p>
           </div>
 
           {success ? (
             <div className="flex flex-col items-center justify-center py-12">
               <CheckCircle className="w-16 h-16 text-green-500 mb-4" />
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Challenge Posted!</h2>
-              <p className="text-gray-500 dark:text-gray-400">It is now pending admin approval. Redirecting...</p>
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{t('postChallenge.successTitle')}</h2>
+              <p className="text-gray-500 dark:text-gray-400">{t('postChallenge.successDesc')}</p>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-6">
               
               <div>
-                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">Title</label>
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">{t('postChallenge.title')}</label>
                 <input
                   type="text"
                   required
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   className="block w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 dark:text-white transition-all"
-                  placeholder="e.g., Potholes on Main Street"
+                  placeholder={t('postChallenge.titlePlaceholder')}
                 />
               </div>
 
               <div>
                 <div className="flex justify-between items-end mb-1.5">
-                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300">Description</label>
+                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300">{t('postChallenge.description')}</label>
                   <button 
                     type="button" 
                     onClick={handleAiAssist}
                     disabled={aiLoading}
-                    className="flex items-center text-xs font-bold bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 border border-indigo-200 dark:border-indigo-800 px-3 py-1.5 rounded-lg transition-colors"
+                    className="flex items-center text-xs font-bold bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 border border-indigo-200 dark:border-indigo-800 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
                   >
                     {aiLoading ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5 mr-1.5" />}
-                    {aiLoading ? 'Analyzing...' : 'Auto-Categorize with AI'}
+                    {aiLoading ? t('postChallenge.aiAnalyzing') : t('postChallenge.aiAssist')}
                   </button>
                 </div>
                 <textarea
@@ -208,64 +268,78 @@ export default function PostChallenge() {
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   className="block w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 dark:text-white transition-all resize-none"
-                  placeholder="Describe the issue, its impact, and what kind of solution you're looking for..."
+                  placeholder={t('postChallenge.descPlaceholder')}
                 />
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">Category</label>
+                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">{t('postChallenge.category')}</label>
                   <select
                     value={category}
                     onChange={(e) => setCategory(e.target.value)}
                     className="block w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 dark:text-white transition-all appearance-none capitalize"
                   >
                     {CATEGORIES.map(cat => (
-                      <option key={cat} value={cat}>{cat}</option>
+                      <option key={cat} value={cat}>{t(`categories.${cat}`)}</option>
                     ))}
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">Severity</label>
+                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">{t('postChallenge.severity')}</label>
                   <select
                     value={severity}
                     onChange={(e) => setSeverity(e.target.value)}
                     className="block w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 dark:text-white transition-all appearance-none capitalize"
                   >
-                    <option value="high">High</option>
-                    <option value="medium">Medium</option>
-                    <option value="low">Low</option>
+                    <option value="high">{t('discover.high')}</option>
+                    <option value="medium">{t('discover.medium')}</option>
+                    <option value="low">{t('discover.low')}</option>
                   </select>
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">Location</label>
-                <input
-                  type="text"
-                  required
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  className="block w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 dark:text-white transition-all"
-                  placeholder="e.g., Downtown District, City Name"
-                />
+                <div className="flex justify-between items-end mb-1.5">
+                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300">{t('postChallenge.location')}</label>
+                  <button 
+                    type="button" 
+                    onClick={handleAutoDetectLocation}
+                    disabled={locLoading}
+                    className="flex items-center text-xs font-bold bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 border border-emerald-200 dark:border-emerald-800 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+                  >
+                    {locLoading ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Navigation className="w-3.5 h-3.5 mr-1.5" />}
+                    {locLoading ? t('postChallenge.detecting') : t('postChallenge.autoDetect')}
+                  </button>
+                </div>
+                <div className="relative">
+                  <input
+                    type="text"
+                    required
+                    value={location}
+                    onChange={(e) => setLocation(e.target.value)}
+                    className="block w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 dark:text-white transition-all"
+                    placeholder={t('postChallenge.locationPlaceholder')}
+                  />
+                  <MapPin className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                </div>
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">Upload Image (Optional)</label>
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">{t('postChallenge.upload')}</label>
                 <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 dark:border-gray-700 border-dashed rounded-lg bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
                   <div className="space-y-1 text-center">
                     <UploadCloud className="mx-auto h-12 w-12 text-gray-400" />
                     <div className="flex text-sm text-gray-600 dark:text-gray-400 justify-center">
                       <label className="relative cursor-pointer bg-transparent rounded-md font-bold text-blue-600 dark:text-blue-400 hover:text-blue-500 focus-within:outline-none">
-                        <span>Upload a file</span>
+                        <span>{t('postChallenge.uploadPrompt')}</span>
                         <input type="file" className="sr-only" accept="image/*" onChange={(e) => setFile(e.target.files[0])} />
                       </label>
-                      <p className="pl-1">or drag and drop</p>
+                      <p className="pl-1">{t('postChallenge.orDrag')}</p>
                     </div>
                     <p className="text-xs text-gray-500 dark:text-gray-500">
-                      {file ? file.name : "PNG, JPG, GIF up to 5MB"}
+                      {file ? file.name : t('postChallenge.fileTypes')}
                     </p>
                   </div>
                 </div>
@@ -281,9 +355,9 @@ export default function PostChallenge() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm shadow-blue-600/20 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 transition-colors mt-6"
+                className="w-full flex justify-center py-3.5 px-4 border border-transparent rounded-lg shadow-sm shadow-blue-600/20 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 transition-colors mt-6 cursor-pointer"
               >
-                {loading ? 'Posting...' : 'Submit Challenge'}
+                {loading ? t('postChallenge.submitting') : t('postChallenge.submit')}
               </button>
             </form>
           )}
