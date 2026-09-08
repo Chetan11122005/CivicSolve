@@ -1,4 +1,10 @@
 {
+  "name": "civicsolve",
+  "private": true,
+  "scripts": {
+    "build": "cd frontend && npm install && npm run build",
+    "dev": "cd frontend && npm run dev"
+  },
   "dependencies": {
     "@supabase/supabase-js": "^2.115.0",
     "dotenv": "^17.4.2"
